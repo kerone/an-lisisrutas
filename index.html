@@ -1,0 +1,1940 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Análisis de Rutas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</head>
+<body>
+<!-- DATA (parsed first, before any logic) -->
+
+</head>
+<body>
+<!-- DATA (parsed first, before any logic) -->
+
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d0f14;--bg2:#13161e;--bg3:#1a1e28;--bg4:#1e2535;--border:#242836;--text:#e2e8f0;--muted:#6b7694;--accent:#4f8ef7}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#screen-select{display:none;flex:1;align-items:center;justify-content:center}
+.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;width:500px;max-height:88vh;display:flex;flex-direction:column;gap:14px}
+.sel-brand{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#f97316;letter-spacing:.04em}
+.sel-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.sel-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:6px}
+.area-list{display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1;padding-right:4px}
+.area-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:all .1s;flex-shrink:0}
+.area-card:hover{border-color:var(--accent);background:var(--bg4)}
+.area-card.sel{border-color:#f97316;background:#f9731612}
+.area-name{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+.area-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.dpo-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+.dpo-g{color:#34d399}.dpo-o{color:#f97316}.dpo-r{color:#ef4444}
+.sel-btn{background:#f97316;border:none;color:#0d0f14;padding:10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;transition:background .15s}
+.sel-btn:hover{background:#ea6f0e}
+.sel-btn:disabled{background:var(--bg3);color:var(--muted);cursor:default}
+#screen-app{display:none;flex:1;flex-direction:column;overflow:hidden}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);height:44px;display:flex;align-items:center;padding:0 16px;gap:0;flex-shrink:0}
+.brand{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#f97316;letter-spacing:.04em;margin-right:6px}
+.area-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-right:18px}
+.tab-btn{height:44px;padding:0 13px;border:none;background:transparent;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}.tab-btn.active{color:#f97316;border-bottom-color:#f97316}
+.back-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;margin-right:8px}
+.back-btn:hover{color:var(--text);border-color:var(--text)}
+.topbar-kpis{display:flex;gap:16px;margin-left:auto}
+.tkpi{display:flex;flex-direction:column;align-items:flex-end}
+.tkv{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;line-height:1}
+.tkl{font-size:9px;color:var(--muted);letter-spacing:.04em;margin-top:1px}
+.tkv.g{color:#34d399}.tkv.o{color:#f97316}
+.tab-content{display:none;flex:1;overflow:hidden}
+.tab-content.active{display:flex}
+.sb{width:255px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sb-hdr{padding:8px 12px;border-bottom:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.sb-scroll{overflow-y:auto;flex:1}
+.map-area{position:relative;flex:1}
+.map-area>div[id^=map]{width:100%;height:100%}
+.ri{padding:7px 11px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .1s}
+.ri:hover{background:var(--bg3)}.ri.on{background:var(--bg4);border-left:3px solid #f97316}
+.ri-id{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;min-width:44px}
+.ri-r{flex:1;min-width:0}
+.ri-dpo{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+.ri-m{font-size:9px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.fi-bar{padding:7px 11px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-shrink:0}
+.fi{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:11px;outline:none}
+.fi:focus{border-color:var(--accent)}.fi-w{flex:1}
+.ji{padding:7px 11px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.ji:hover{background:var(--bg3)}.ji.on{background:var(--bg4);border-left:3px solid #ef4444}
+.ji-cp{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#ef4444}
+.ji-m{font-size:9px;color:var(--muted);margin-top:2px;font-family:'IBM Plex Mono',monospace}
+.cor-hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.ctbtn{padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all .1s}
+.ctbtn.on{border-color:#f97316;color:#f97316;background:#f9731610}
+.cor-panel{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1}
+.cor-card{border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.cor-card-hdr{padding:8px 11px;display:flex;align-items:center;gap:7px}
+.cor-card-name{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;flex:1}
+.cor-card-body{padding:0 11px 8px;display:flex;flex-direction:column;gap:3px}
+.cst{display:flex;justify-content:space-between;font-size:10px}
+.cst-l{color:var(--muted)}.cst-v{font-family:'IBM Plex Mono',monospace;font-weight:500}
+.cor-chips{display:flex;flex-wrap:wrap;gap:4px;padding:7px 11px 4px;border-top:1px solid var(--border)}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 6px;border-radius:3px;font-weight:500}
+.imp-bar{height:5px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:4px}
+.imp-fill{height:100%;border-radius:3px}
+.sim-sb{width:270px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sim-kpi{background:var(--bg3);border-radius:5px;padding:6px 8px}
+.sim-kpi-v{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600}
+.sim-kpi-l{font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:.04em}
+.sim-kpi-v.g{color:#34d399}.sim-kpi-v.o{color:#f97316}.sim-kpi-v.r{color:#ef4444}
+.btn-xs{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 7px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.btn-xs:hover{color:#ef4444;border-color:#ef4444}
+.btn-add{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:3px;border:1px dashed var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.btn-add:hover{color:var(--accent);border-color:var(--accent)}
+.map-legend{position:absolute;bottom:20px;right:8px;background:rgba(13,15,20,.95);border:1px solid var(--border);border-radius:7px;padding:8px 11px;z-index:1000;font-size:10px;max-width:220px}
+.li{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-family:'IBM Plex Mono',monospace;color:var(--muted)}
+.li:last-child{margin-bottom:0}.ld{width:20px;height:3px;border-radius:2px}
+.leaflet-popup-content-wrapper{background:#1a1e28!important;border:1px solid #242836!important;border-radius:8px!important;box-shadow:0 4px 20px rgba(0,0,0,.5)!important}
+.leaflet-popup-content{color:#e2e8f0;font-family:'IBM Plex Sans',sans-serif;margin:10px 14px!important;min-width:155px}
+.leaflet-popup-tip{background:#1a1e28!important}
+.pt{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;margin-bottom:5px}
+.pr{display:flex;justify-content:space-between;gap:12px;margin-bottom:2px;font-size:11px}
+.pl{color:var(--muted)}.pv{font-family:'IBM Plex Mono',monospace}.pv.bad{color:#ef4444;font-weight:600}
+.load{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 20px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);z-index:1000;pointer-events:none}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+#screen-csv{display:flex;flex:1;align-items:center;justify-content:center}
+.csv-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:32px;width:480px;display:flex;flex-direction:column;gap:16px}
+.csv-drop{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.csv-drop:hover,.csv-drop.drag{border-color:#f97316;background:#f9731608}
+.csv-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.csv-drop-icon{font-size:28px;margin-bottom:8px}
+.csv-drop-lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)}
+.csv-drop-sub{font-size:11px;color:var(--muted);margin-top:4px;opacity:.6}
+.csv-cols{background:var(--bg3);border-radius:6px;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);line-height:1.7}
+.csv-cols span{color:#f97316}
+.csv-progress{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.csv-progress-bar{height:3px;background:#f97316;border-radius:2px;width:0%;animation:csvprog 1.2s ease-in-out infinite}
+@keyframes csvprog{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+.csv-status{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);min-height:16px}
+</style>
+
+<!-- CSV LOAD SCREEN -->
+<div id="screen-csv" style="display:flex;flex:1;align-items:center;justify-content:center">
+  <div class="csv-card">
+    <div>
+      <div class="sel-brand">Análisis de Rutas</div>
+      <div class="sel-sub">Carga un CSV exportado de BigQuery para comenzar</div>
+    </div>
+    <div class="csv-drop" id="csv-drop" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="this.classList.remove('drag');onCSVLoad(event.dataTransfer.files[0])">
+      <input type="file" accept=".csv" onchange="onCSVLoad(this.files[0])">
+      <div class="csv-drop-icon">📂</div>
+      <div class="csv-drop-lbl">Arrastra el CSV aquí o haz clic para seleccionar</div>
+      <div class="csv-drop-sub">Exportado directamente de <a href="https://metabase.prod.monline/question/33339-rutas-virgenes-cps-y-coordenadas-de-sus-pedidos?hive_code=alc1" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#f97316;text-decoration:none;border-bottom:1px solid #f9731660;padding-bottom:1px;pointer-events:all;position:relative;z-index:10">BigQuery → Metabase ↗</a></div>
+    </div>
+    <div class="csv-cols">
+      <div style="color:var(--text);font-weight:600;margin-bottom:4px">COLUMNAS REQUERIDAS</div>
+      <span>hive_code · area · route_id · delivery_date · shift</span><br>
+      <span>routing_plan_priority · waypoint_type · demands</span><br>
+      <span>waypoint_latitude · waypoint_longitude · waypoint_postal_code</span><br>
+      <div style="margin-top:6px;opacity:.6">también acepta formato clásico: hive · area · route_id · stop_order · stop_type · lat · lng · n_pedidos</div>
+    </div>
+    <div id="csv-progress" class="csv-progress" style="display:none"><div class="csv-progress-bar"></div></div>
+    <div id="csv-status" class="csv-status"></div>
+  </div>
+</div>
+
+<!-- SELECTOR SCREEN -->
+<div id="screen-select">
+  <div class="sel-card">
+    <div>
+      <div class="sel-brand">Análisis de Rutas</div>
+      <div class="sel-sub">Selecciona un área para analizar</div>
+    </div>
+    <div class="sel-label" id="area-count-label">ÁREA</div>
+    <div class="area-list" id="area-cards"></div>
+    <button class="sel-btn" id="go-btn" disabled onclick="loadArea()">ANALIZAR →</button>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="screen-app">
+  <div class="topbar">
+    <button class="back-btn" onclick="goBack()">← Volver</button>
+    <span class="brand" id="app-brand">SVQ1</span>
+    <span class="area-tag" id="app-area">—</span>
+    <button class="tab-btn active" onclick="switchTab(0)">RUTAS</button>
+    <button class="tab-btn" onclick="switchTab(1)">SALTOS &gt;10KM</button>
+    <button class="tab-btn" onclick="switchTab(2)">CORREDORES SUGERIDOS</button>
+    <button class="tab-btn" onclick="switchTab(3)">SIMULACIÓN</button>
+    <div class="topbar-kpis">
+      <div class="tkpi"><span class="tkv g" id="kpi-dpo">—</span><span class="tkl">KM/PEDIDO (CARRETERA)</span></div>
+      <div class="tkpi"><span class="tkv" id="kpi-tpo">—</span><span class="tkl">MIN/PEDIDO (CARRETERA)</span></div>
+      <div class="tkpi"><span class="tkv o" id="kpi-jumps">—</span><span class="tkl">SALTOS &gt;10KM</span></div>
+      <div class="tkpi"><span class="tkv" id="kpi-routes">—</span><span class="tkl">RUTAS</span></div>
+    </div>
+  </div>
+  <div class="tab-content active" id="tab0">
+    <div class="sb">
+      <div class="fi-bar"><input class="fi fi-w" id="routeQ" placeholder="Buscar ruta o CP…" oninput="filterRoutes()">
+        <select class="fi" id="routeSort" onchange="filterRoutes()">
+          <option value="dpo_d">↓ km/ped</option><option value="dpo_a">↑ km/ped</option>
+          <option value="dur_d">↓ duración</option><option value="dur_a">↑ duración</option>
+          <option value="n_d">↓ paradas</option><option value="date">fecha</option>
+        </select></div>
+      <div class="sb-hdr"><span id="rcount">— rutas</span></div>
+      <div id="osrm-progress-routes" style="display:none;padding:6px 10px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;color:var(--muted);margin-bottom:4px">
+          <span>CALCULANDO RUTAS POR CARRETERA</span><span id="osrm-routes-txt">0/0</span>
+        </div>
+        <div style="height:3px;background:var(--bg4);border-radius:2px"><div id="osrm-routes-bar" style="height:3px;background:#4f8ef7;border-radius:2px;width:0%;transition:width .3s"></div></div>
+      </div>
+      <div class="sb-scroll" id="rlist"></div>
+    </div>
+    <div class="map-area"><div id="map0"></div><div class="load" id="load0">Cargando…</div>
+      <div class="map-legend">
+        <div class="li"><div class="ld" style="background:#34d399"></div>&lt; 5 km</div>
+        <div class="li"><div class="ld" style="background:#f97316"></div>5–10 km</div>
+        <div class="li"><div class="ld" style="background:#ef4444"></div>&gt; 10 km</div>
+        <div class="li"><div class="ld" style="background:transparent;border-top:1px dashed #334155;height:0"></div>colmena ↔ pedido</div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab1">
+    <div class="sb"><div class="sb-hdr"><span id="jumps-hdr">SALTOS &gt;10KM</span></div>
+      <div id="osrm-progress-jumps" style="display:none;padding:6px 10px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;color:var(--muted);margin-bottom:4px">
+          <span>CALCULANDO SALTOS POR CARRETERA</span><span id="osrm-jumps-txt">0/0</span>
+        </div>
+        <div style="height:3px;background:var(--bg4);border-radius:2px"><div id="osrm-jumps-bar" style="height:3px;background:#f97316;border-radius:2px;width:0%;transition:width .3s"></div></div>
+      </div>
+      <div class="sb-scroll" id="jlist"></div></div>
+    <div class="map-area"><div id="map1"></div>
+      <div class="map-legend">
+        <div class="li"><div class="ld" style="background:#ef4444"></div>&gt; 15 km</div>
+        <div class="li"><div class="ld" style="background:#f97316"></div>10–15 km</div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab2" style="flex-direction:column">
+    <div class="cor-hdr">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.05em">AGRUPACIÓN:</span>
+      <span id="cor-btns"></span>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:8px;padding-left:10px;border-left:1px solid var(--border)">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.05em">CRITERIO:</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7dd3fc;font-weight:600" title="Distancia híbrida: 50% geografía + 30% afinidad de rutas + 20% penalización por saltos >10km. Los saltos del histórico empujan a sus CPs a corredores distintos.">Anti-saltos (geo 50 · afin 30 · saltos 20)</span>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:14px;font-size:11px;flex-wrap:wrap">
+        <span style="color:var(--muted)">Baseline: <span id="cor-baseline" style="font-family:'IBM Plex Mono',monospace;color:#f97316;font-weight:600">—</span></span>
+        <span style="color:var(--muted)">Corredores: <span id="cor-dpo" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
+        <span style="color:var(--muted)">Mejora: <span id="cor-imp" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
+        <span style="color:var(--muted)" title="Saltos >10km que cruzan corredores (= se eliminan si se reestructura el área)">Saltos elim.: <span id="cor-jumps-elim" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
+        <span id="cor-excl" style="font-size:10px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div style="display:flex;flex:1;overflow:hidden">
+      <div class="sb" style="width:265px"><div class="cor-panel" id="cor-panel"></div></div>
+      <div class="map-area"><div id="map2"></div></div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab3">
+    <div class="sim-sb">
+      <div style="padding:7px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;align-items:center" id="sim-cor-tabs"></div>
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.05em;margin-bottom:6px" id="sim-cp-label">—</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px" id="sim-cp-grid"></div>
+      </div>
+      <div style="padding:9px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.05em;margin-bottom:6px">RESULTADO GLOBAL</div>
+        <div style="display:flex;gap:6px;margin-bottom:5px">
+          <div class="sim-kpi" style="flex:1"><div class="sim-kpi-v" id="g-dpo">—</div><div class="sim-kpi-l">KM/PEDIDO</div></div>
+          <div class="sim-kpi" style="flex:1"><div class="sim-kpi-v g" id="g-imp">—</div><div class="sim-kpi-l">MEJORA</div></div>
+          <div class="sim-kpi" style="flex:1"><div class="sim-kpi-v o" id="g-segs">—</div><div class="sim-kpi-l">SEGS</div></div>
+        </div>
+        <div style="font-size:9px;color:var(--muted);line-height:1.5" id="g-note">Crea corredores y asigna CPs</div>
+      </div>
+      <div style="overflow-y:auto;flex:1" id="sim-results"></div>
+    </div>
+    <div class="map-area">
+      <div id="map3"></div>
+      <div class="map-legend" id="sim-legend"><div class="li"><div class="ld" style="background:transparent;border-top:1px dashed #475569;height:0"></div>Sin asignar</div></div>
+    </div>
+  </div>
+</div>
+
+
+
+<script>
+// ── PANTALLA DE CARGA CSV ──────────────────────────────────────────────────
+var ALL_DATA = null, D = null, selectedArea = null;
+
+function showCsvScreen() {
+  document.getElementById('screen-csv').style.display = 'flex';
+  document.getElementById('screen-select').style.display = 'none';
+  document.getElementById('screen-app').style.display = 'none';
+}
+
+// ── Haversine ────────────────────────────────────────────────────────────
+function hav2(la1,lo1,la2,lo2){
+  var R=6371,p=Math.PI/180,dp=(la2-la1)*p,dl=(lo2-lo1)*p;
+  var a=Math.sin(dp/2)*Math.sin(dp/2)+Math.cos(la1*p)*Math.cos(la2*p)*Math.sin(dl/2)*Math.sin(dl/2);
+  return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+window.fmtCp = function(cp){return String(cp).padStart(5,'0');};
+window.fmtDur = function(s){if(!s||s<=0)return'—';var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+String(m).padStart(2,'0')+'min':m+'min';};
+
+
+// ── Parser CSV (maneja comillas, comas dentro de campos) ─────────────────
+function parseCSV(text) {
+  var lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  if (!lines.length) return [];
+  function parseLine(line) {
+    var cols=[], cur='', inQ=false;
+    for (var i=0;i<line.length;i++) {
+      var c=line[i];
+      if (c==='"') { inQ=!inQ; }
+      else if (c===','&&!inQ) { cols.push(cur); cur=''; }
+      else { cur+=c; }
+    }
+    cols.push(cur);
+    return cols;
+  }
+  var headers = parseLine(lines[0]).map(function(h){ return h.trim().toLowerCase().replace(/"/g,''); });
+  var rows = [];
+  for (var i=1;i<lines.length;i++) {
+    if (!lines[i].trim()) continue;
+    var vals = parseLine(lines[i]);
+    var obj = {};
+    headers.forEach(function(h,j){ obj[h] = (vals[j]||'').replace(/^"|"$/g,'').trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+// ── Normalizar float (acepta coma o punto decimal) ───────────────────────
+function toFloat(v) {
+  if (v===undefined||v===null||v==='') return NaN;
+  return parseFloat(String(v).replace(',','.'));
+}
+
+// ── Detectar formato CSV (nuevo o clásico) ───────────────────────────────
+function detectFormat(headers) {
+  if (headers.indexOf('hive_code')>=0) return 'new';
+  if (headers.indexOf('hive')>=0) return 'classic';
+  return 'unknown';
+}
+
+// ── Normalizar fila al formato interno ───────────────────────────────────
+// Formato interno: { hive, area, route_id, route_date, shift, cp, stop_order, stop_type, lat, lng, n_pedidos, dist_seg_km }
+function normalizeRow(r, fmt) {
+  if (fmt === 'new') {
+    var hive = (r.hive_code||'').toLowerCase().trim();
+    var rawArea = (r.area||'').toLowerCase().trim();
+    // quitar prefijo "hive-" del area: "svq1-carmona" → "carmona"
+    var area = rawArea.startsWith(hive+'-') ? rawArea.slice(hive.length+1) : rawArea;
+    return {
+      hive: hive,
+      area: area,
+      route_id: (r.route_id||'').trim(),
+      route_date: (r.delivery_date||'').trim(),
+      shift: (r.shift||'morning').toLowerCase().trim(),
+      cp: parseInt(r.waypoint_postal_code)||0,
+      stop_order: parseInt(r.routing_plan_priority)||0,
+      stop_type: 1, // nuevo CSV solo tiene entregas
+      lat: toFloat(r.waypoint_latitude),
+      lng: toFloat(r.waypoint_longitude),
+      n_pedidos: 1,  // cada fila del CSV nuevo = 1 pedido (la columna 'demands' es volumen, no nº pedidos)
+      dist_seg_km: NaN  // se calcula con haversine
+    };
+  } else {
+    return {
+      hive: (r.hive||'').toLowerCase().trim(),
+      area: (r.area||'').toLowerCase().trim(),
+      route_id: r.route_id,
+      route_date: r.route_date||'',
+      shift: (r.shift||'morning').toLowerCase().trim(),
+      cp: parseInt(r.cp)||0,
+      stop_order: parseInt(r.stop_order)||0,
+      stop_type: parseInt(r.stop_type)||1,
+      lat: toFloat(r.lat),
+      lng: toFloat(r.lng),
+      n_pedidos: toFloat(r.n_pedidos)||1,
+      dist_seg_km: toFloat(r.dist_seg_km)
+    };
+  }
+}
+
+
+// ── HYBRID CLUSTERING (Anti-Saltos) ──
+// Objetivo: minimizar saltos >10km del histórico, forzando que sus extremos
+// caigan en corredores distintos (un salto cross-cluster = salto eliminado).
+// Distancia híbrida = W_GEO·d_geo + W_AFF·d_afin + W_JMP·d_jumpPenalty
+//   - d_geo:  haversine entre centroides, normalizada 0-1.
+//   - d_afin: 1 - Jaccard(co-ocurrencia en rutas). Mantiene CPs que ya se sirven juntos.
+//   - d_jumpPenalty: cuanto más km totales de saltos >10km hay entre A y B en
+//     el histórico, MÁS lejos los pone el algoritmo (los empuja a corredores
+//     distintos). Se penaliza según los km totales de saltos del par /
+//     km máximos de saltos del área (normalización 0-1).
+var W_GEO=0.5, W_AFF=0.3, W_JMP=0.2;
+
+function computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumpsArr){
+  var CLUSTER_KS=[2,3,4];
+  var clusterings={}, results={};
+  if (cpsWC.length<2) return {clusterings:clusterings, results:results};
+
+  // 1. Matriz de distancias por par (normalizada 0-1)
+  var n=cpsWC.length;
+  var distMat=[];
+  // 1a. Distancia geográfica (haversine) entre centroides
+  var geoMax=0, geoDist={};
+  for (var i=0;i<n;i++){
+    geoDist[i]={};
+    for (var j=i+1;j<n;j++){
+      var ca=cpCentroids[String(cpsWC[i])], cb=cpCentroids[String(cpsWC[j])];
+      var d=hav2(ca[0],ca[1],cb[0],cb[1]);
+      geoDist[i][j]=d;
+      if (d>geoMax) geoMax=d;
+    }
+  }
+  // 1b. Distancia por afinidad (1 - Jaccard de co-ocurrencia en rutas)
+  // Para cada CP, set de rutas donde aparece
+  var cpRoutes={};
+  cpsWC.forEach(function(cp){ cpRoutes[String(cp)]=new Set(); });
+  Object.keys(routeCpsSet).forEach(function(rid){
+    routeCpsSet[rid].forEach(function(cp){
+      if (cpRoutes[cp]) cpRoutes[cp].add(rid);
+    });
+  });
+  // 1c. Matriz de penalización por saltos: jumpKm[cpA][cpB] = suma de km de saltos >10km entre A y B
+  var jumpKm={}, jumpMax=0;
+  (jumpsArr||[]).forEach(function(j){
+    // j = [rid, cpA, cpB, distKm, ...]
+    var a=String(j[1]), b=String(j[2]), km=j[3];
+    if (a==='0' || b==='0' || a===b) return;
+    var lo = a<b ? a : b, hi = a<b ? b : a;
+    if (!jumpKm[lo]) jumpKm[lo]={};
+    jumpKm[lo][hi] = (jumpKm[lo][hi]||0) + km;
+    if (jumpKm[lo][hi] > jumpMax) jumpMax = jumpKm[lo][hi];
+  });
+  function getJumpKm(cpA, cpB){
+    var a=String(cpA), b=String(cpB);
+    var lo = a<b ? a : b, hi = a<b ? b : a;
+    return (jumpKm[lo] && jumpKm[lo][hi]) || 0;
+  }
+  // 1d. Combinar
+  for (var i=0;i<n;i++){
+    distMat.push([]);
+    for (var j=0;j<n;j++){
+      if (i===j) { distMat[i].push(0); continue; }
+      var ii=Math.min(i,j), jj=Math.max(i,j);
+      var dGeo = geoMax>0 ? (geoDist[ii][jj]/geoMax) : 0;
+      var ra=cpRoutes[String(cpsWC[i])], rb=cpRoutes[String(cpsWC[j])];
+      // Jaccard = |A ∩ B| / |A ∪ B|
+      var inter=0;
+      ra.forEach(function(r){ if (rb.has(r)) inter++; });
+      var uni=ra.size+rb.size-inter;
+      var jacc = uni>0 ? inter/uni : 0;
+      var dAff = 1-jacc;
+      // Penalización por saltos: si entre i y j hay saltos >10km, inflamos la distancia
+      var jKm = getJumpKm(cpsWC[i], cpsWC[j]);
+      var dJmp = jumpMax>0 ? (jKm/jumpMax) : 0;
+      var dHyb = W_GEO*dGeo + W_AFF*dAff + W_JMP*dJmp;
+      distMat[i].push(dHyb);
+    }
+  }
+
+  // 2. Para cada k, hacer clustering jerárquico aglomerativo (average linkage) y cortar
+  CLUSTER_KS.forEach(function(k){
+    if (k>cpsWC.length) return;
+    var labels = hierarchicalCluster(distMat, k);
+    var clust={};
+    cpsWC.forEach(function(cp,i){ clust[String(cp)]=labels[i]; });
+    cpList.forEach(function(cp){ if (clust[String(cp)]===undefined) clust[String(cp)]=0; });
+    clusterings[String(k)] = clust;
+
+    var res={}, exclSegs=0;
+    for (var ci=0;ci<k;ci++){
+      var cCps=new Set(Object.keys(clust).filter(function(cp){return clust[cp]===ci;}));
+      var inSegs=simSegs.filter(function(s){return cCps.has(String(s[1]))&&cCps.has(String(s[2]));});
+      var crossSegs=simSegs.filter(function(s){return cCps.has(String(s[1]))!==cCps.has(String(s[2]));});
+      exclSegs+=crossSegs.length;
+      var nRts=(function(){var rr={};inSegs.forEach(function(s){rr[s[0]]=1;});return Object.keys(rr).length;})();
+      var td=inSegs.reduce(function(s,seg){return s+seg[3];},0);
+      var dpoC = inSegs.length>0 ? (td/inSegs.length)*rf : 0;
+      res[String(ci+1)] = {
+        cps: Array.from(cCps).map(Number).sort(function(a,b){return a-b;}),
+        dpo: Math.round(dpoC*1000)/1000,
+        n_segs: inSegs.length,
+        n_routes: nRts
+      };
+    }
+    // Métricas de éxito anti-saltos:
+    //   - jumpsEliminated: saltos >10km cuyos extremos caen en corredores DISTINTOS (se eliminan al cruzar frontera)
+    //   - jumpsRemaining: saltos >10km que sobreviven dentro del mismo corredor
+    var jElim=0, jKmElim=0, jRem=0, jKmRem=0;
+    (jumpsArr||[]).forEach(function(j){
+      var a=String(j[1]), b=String(j[2]);
+      if (a==='0' || a===b) return;
+      var clA=clust[a], clB=clust[b];
+      if (clA===undefined || clB===undefined) return;
+      if (clA!==clB){ jElim++; jKmElim+=j[3]; }
+      else { jRem++; jKmRem+=j[3]; }
+    });
+    res['_total'] = {
+      excluded_segs: exclSegs,
+      jumps_eliminated: jElim,
+      jumps_km_eliminated: Math.round(jKmElim*10)/10,
+      jumps_remaining: jRem,
+      jumps_km_remaining: Math.round(jKmRem*10)/10
+    };
+    results[String(k)] = res;
+  });
+
+  return {clusterings:clusterings, results:results};
+}
+
+// Clustering jerárquico aglomerativo con average linkage.
+// distMat: matriz NxN simétrica, distMat[i][j] = distancia.
+// targetK: nº de clusters final.
+// Retorna: array de labels (0..k-1) de longitud n.
+function hierarchicalCluster(distMat, targetK){
+  var n=distMat.length;
+  // Cada punto empieza en su propio cluster
+  var clusters=[]; for (var i=0;i<n;i++) clusters.push([i]);
+
+  while (clusters.length>targetK) {
+    // Encontrar el par de clusters más cercanos (average linkage)
+    var bestI=-1, bestJ=-1, bestD=Infinity;
+    for (var a=0; a<clusters.length; a++){
+      for (var b=a+1; b<clusters.length; b++){
+        // Distancia media entre puntos de cluster a y cluster b
+        var sum=0, cnt=0;
+        for (var pa=0; pa<clusters[a].length; pa++){
+          for (var pb=0; pb<clusters[b].length; pb++){
+            sum += distMat[clusters[a][pa]][clusters[b][pb]];
+            cnt++;
+          }
+        }
+        var avg = cnt>0 ? sum/cnt : Infinity;
+        if (avg<bestD) { bestD=avg; bestI=a; bestJ=b; }
+      }
+    }
+    // Fusionar bestI y bestJ
+    if (bestI<0) break;
+    clusters[bestI] = clusters[bestI].concat(clusters[bestJ]);
+    clusters.splice(bestJ, 1);
+  }
+
+  // Asignar labels
+  var labels = new Array(n).fill(0);
+  clusters.forEach(function(c, idx){
+    c.forEach(function(pi){ labels[pi]=idx; });
+  });
+  return labels;
+}
+
+// ── K-means++ con n_init=10 (réplica de sklearn.KMeans) ──────────────────
+// Mulberry32: PRNG semilla=42 para reproducibilidad determinista
+function _seededRng(seed){
+  return function(){
+    seed=(seed+0x6D2B79F5)|0;
+    var t=seed;
+    t=Math.imul(t^(t>>>15),t|1);
+    t^=t+Math.imul(t^(t>>>7),t|61);
+    return((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+
+function _kmppInit(sc, k, rng){
+  var n=sc.length;
+  // Primer centroide: aleatorio
+  var idx0=Math.floor(rng()*n);
+  var centroids=[sc[idx0].slice()];
+  var dist2=new Array(n);
+  for (var i=0;i<n;i++){
+    var dx=sc[i][0]-centroids[0][0],dy=sc[i][1]-centroids[0][1];
+    dist2[i]=dx*dx+dy*dy;
+  }
+  // Resto: probabilidad proporcional a D^2 (k-means++)
+  for (var c=1;c<k;c++){
+    var sum=0;
+    for (var i=0;i<n;i++) sum+=dist2[i];
+    if (sum===0){ centroids.push(sc[Math.floor(rng()*n)].slice()); continue; }
+    var r=rng()*sum, acc=0, picked=n-1;
+    for (var i=0;i<n;i++){ acc+=dist2[i]; if (acc>=r){ picked=i; break; } }
+    centroids.push(sc[picked].slice());
+    for (var i=0;i<n;i++){
+      var dx=sc[i][0]-centroids[c][0],dy=sc[i][1]-centroids[c][1];
+      var d=dx*dx+dy*dy;
+      if (d<dist2[i]) dist2[i]=d;
+    }
+  }
+  return centroids;
+}
+
+function _kmRunOnce(sc, k, centroids, maxIter){
+  var n=sc.length;
+  var labels=new Array(n).fill(0);
+  for (var iter=0;iter<maxIter;iter++){
+    var changed=false;
+    for (var i=0;i<n;i++){
+      var best=0,bestD=Infinity;
+      for (var c=0;c<k;c++){
+        var dx=sc[i][0]-centroids[c][0],dy=sc[i][1]-centroids[c][1];
+        var d=dx*dx+dy*dy;
+        if (d<bestD){bestD=d;best=c;}
+      }
+      if (labels[i]!==best){labels[i]=best;changed=true;}
+    }
+    if (!changed) break;
+    var sums=[],cnts=[];
+    for (var c=0;c<k;c++){sums.push([0,0]);cnts.push(0);}
+    for (var i=0;i<n;i++){sums[labels[i]][0]+=sc[i][0];sums[labels[i]][1]+=sc[i][1];cnts[labels[i]]++;}
+    for (var c=0;c<k;c++){if(cnts[c]>0) centroids[c]=[sums[c][0]/cnts[c],sums[c][1]/cnts[c]];}
+  }
+  // Calcular inertia (suma de D² al centroide asignado)
+  var inertia=0;
+  for (var i=0;i<n;i++){
+    var dx=sc[i][0]-centroids[labels[i]][0],dy=sc[i][1]-centroids[labels[i]][1];
+    inertia+=dx*dx+dy*dy;
+  }
+  return {labels:labels, inertia:inertia};
+}
+
+function kmeans(points, k, maxIter) {
+  maxIter=maxIter||300; // sklearn default
+  var n=points.length;
+  if (n<k) k=n;
+  // StandardScaler: media 0, std 1 (matching sklearn StandardScaler)
+  var mlat=0,mlng=0;
+  points.forEach(function(p){mlat+=p[0];mlng+=p[1];});
+  mlat/=n; mlng/=n;
+  var slat=0,slng=0;
+  points.forEach(function(p){slat+=(p[0]-mlat)*(p[0]-mlat);slng+=(p[1]-mlng)*(p[1]-mlng);});
+  slat=Math.sqrt(slat/n)||1; slng=Math.sqrt(slng/n)||1;
+  var sc=points.map(function(p){return[(p[0]-mlat)/slat,(p[1]-mlng)/slng];});
+  // n_init=10 con k-means++ → quedarse con el de menor inertia
+  var rng=_seededRng(42);
+  var bestLabels=null, bestInertia=Infinity;
+  for (var run=0;run<10;run++){
+    var init=_kmppInit(sc, k, rng);
+    var res=_kmRunOnce(sc, k, init, maxIter);
+    if (res.inertia<bestInertia){bestInertia=res.inertia; bestLabels=res.labels;}
+  }
+  return bestLabels;
+}
+
+// ── Procesar filas normalizadas → ALL_DATA ────────────────────────────────
+function processRows(rows) {
+  var JUMP_KM=10.0, CLUSTER_KS=[2,3,4], DEFAULT_RF=1.25;
+
+  // Agrupar por área
+  var areaMap={};
+  rows.forEach(function(r){
+    if (!r.hive||!r.area||isNaN(r.lat)||isNaN(r.lng)) return;
+    var key=r.hive+'/'+r.area;
+    if (!areaMap[key]) areaMap[key]=[];
+    areaMap[key].push(r);
+  });
+
+  var allData={};
+
+  Object.keys(areaMap).sort().forEach(function(areaKey){
+    var adf=areaMap[areaKey];
+    var hive=adf[0].hive, area=adf[0].area;
+    var rf=DEFAULT_RF;
+
+    // Centro: media de puntos de entrega
+    var dels=adf.filter(function(r){return r.stop_type===1;});
+    var src=dels.length?dels:adf;
+    var cLat=src.reduce(function(s,r){return s+r.lat;},0)/src.length;
+    var cLng=src.reduce(function(s,r){return s+r.lng;},0)/src.length;
+
+    // Días de servicio
+    var dates={};
+    adf.forEach(function(r){if(r.route_date) dates[r.route_date]=1;});
+    var serviceDays=Object.keys(dates).length||20;
+
+    // Agrupar por ruta
+    var routeMap={};
+    adf.forEach(function(r){
+      if(!routeMap[r.route_id]) routeMap[r.route_id]=[];
+      routeMap[r.route_id].push(r);
+    });
+
+    // route_stats + route_waypoints
+    var routeStats=[], routeWaypoints={};
+    Object.keys(routeMap).forEach(function(rid){
+      var pts=routeMap[rid].slice().sort(function(a,b){return a.stop_order-b.stop_order;});
+      var nPed=pts.filter(function(r){return r.stop_type===1;})
+                  .reduce(function(s,r){return s+r.n_pedidos;},0);
+      // dpo_ruta: calcular con haversine entre consecutivos / nPed
+      var totalDist=0;
+      for (var i=0;i<pts.length-1;i++) totalDist+=hav2(pts[i].lat,pts[i].lng,pts[i+1].lat,pts[i+1].lng);
+      var dpo=nPed>0?totalDist/nPed:0;
+      var shift=pts[0].shift||'morning';
+      var date=pts[0].route_date||'';
+      var cpSet={}, cps=[];
+      pts.forEach(function(r){if(r.stop_type===1&&!cpSet[r.cp]){cpSet[r.cp]=1;cps.push(r.cp);}});
+      cps.sort(function(a,b){return a-b;});
+      var nStops=pts.filter(function(r){return r.stop_type===1;}).length;
+      routeStats.push({id:rid, n:Math.round(nPed), n_stops:nStops, km:Math.round(totalDist*100)/100, dpo:Math.round(dpo*1000)/1000, shift:shift, date:date, cps:cps});
+      // waypoints: [lat, lng, cp, order, type]
+      var wps=pts.map(function(r){return[
+        Math.round(r.lat*1e6)/1e6,
+        Math.round(r.lng*1e6)/1e6,
+        r.cp, r.stop_order, r.stop_type
+      ];});
+      routeWaypoints[String(rid)]=wps;
+    });
+
+    // baseline_dpo: media ponderada por nPed
+    var totalDistAll=0, totalPedAll=0;
+    routeStats.forEach(function(r){totalDistAll+=r.dpo*r.n; totalPedAll+=r.n;});
+    var bDpo=totalPedAll>0?totalDistAll/totalPedAll:0;
+
+    // cp_list + cp_daily
+    var cpTotals={};
+    adf.filter(function(r){return r.stop_type===1;}).forEach(function(r){
+      var cp=String(r.cp);
+      cpTotals[cp]=(cpTotals[cp]||0)+r.n_pedidos;
+    });
+    var cpList=Object.keys(cpTotals).map(Number).sort(function(a,b){return a-b;});
+    var cpDaily={};
+    cpList.forEach(function(cp){cpDaily[String(cp)]=Math.round(cpTotals[String(cp)]/Math.max(serviceDays,1)*100)/100;});
+
+    // jumps (saltos > 10km entre paradas consecutivas)
+    var jumps=[];
+    Object.keys(routeMap).forEach(function(rid){
+      var pts=routeMap[rid].slice().sort(function(a,b){return a.stop_order-b.stop_order;});
+      for (var i=0;i<pts.length-1;i++){
+        var ra=pts[i],rb=pts[i+1];
+        if(rb.stop_type!==1) continue;
+        var cpA=ra.stop_type===1?ra.cp:0, cpB=rb.cp;
+        if(cpA===cpB) continue;
+        var dist=hav2(ra.lat,ra.lng,rb.lat,rb.lng);
+        if(dist>JUMP_KM) jumps.push([rid,cpA,cpB,Math.round(dist*100)/100,
+          Math.round(ra.lat*1e5)/1e5,Math.round(ra.lng*1e5)/1e5,
+          Math.round(rb.lat*1e5)/1e5,Math.round(rb.lng*1e5)/1e5]);
+      }
+    });
+
+    // sim_segs (segmentos entre CPs consecutivos de entrega)
+    var simSegs=[];
+    Object.keys(routeMap).forEach(function(rid){
+      var pts=routeMap[rid].filter(function(r){return r.stop_type===1;})
+                           .sort(function(a,b){return a.stop_order-b.stop_order;});
+      for (var i=0;i<pts.length-1;i++){
+        var ra=pts[i],rb=pts[i+1];
+        if(ra.cp===rb.cp) continue;
+        var dist=!isNaN(ra.dist_seg_km)&&ra.dist_seg_km>0?ra.dist_seg_km:hav2(ra.lat,ra.lng,rb.lat,rb.lng);
+        simSegs.push([rid,ra.cp,rb.cp,Math.round(dist*1000)/1000,
+          Math.round(ra.lat*1e5)/1e5,Math.round(ra.lng*1e5)/1e5,
+          Math.round(rb.lat*1e5)/1e5,Math.round(rb.lng*1e5)/1e5]);
+      }
+    });
+
+    // Centroides por CP a partir de sim_segs
+    var cpCoords={};
+    simSegs.forEach(function(s){
+      var a=String(s[1]),b=String(s[2]);
+      if(!cpCoords[a]) cpCoords[a]=[];
+      if(!cpCoords[b]) cpCoords[b]=[];
+      cpCoords[a].push([s[4],s[5]]);
+      cpCoords[b].push([s[6],s[7]]);
+    });
+    var cpsWC=cpList.filter(function(cp){return cpCoords[String(cp)]&&cpCoords[String(cp)].length;});
+    var cpCentroids={};
+    cpsWC.forEach(function(cp){
+      var pp=cpCoords[String(cp)];
+      cpCentroids[String(cp)]=[pp.reduce(function(s,p){return s+p[0];},0)/pp.length,
+                               pp.reduce(function(s,p){return s+p[1];},0)/pp.length];
+    });
+    // route_cps_set: para cada ruta, conjunto de CPs visitados (para afinidad Jaccard)
+    var routeCpsSet={};
+    routeStats.forEach(function(r){
+      routeCpsSet[String(r.id)]=r.cps.map(String);
+    });
+    // Clustering anti-saltos: penaliza pares de CPs unidos por saltos >10km
+    var clusterings={}, results={};
+    var defaultClust = computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumps);
+    clusterings = defaultClust.clusterings;
+    results = defaultClust.results;
+
+    allData[areaKey]={
+      hive:hive, area:area,
+      baseline_dpo:Math.round(bDpo*1000)/1000,
+      n_routes:routeStats.length,
+      service_days:serviceDays,
+      n_cps:cpList.length,
+      n_jumps:jumps.length,
+      baseline_n_segs:simSegs.length,
+      center:[Math.round(cLat*1e4)/1e4,Math.round(cLng*1e4)/1e4],
+      road_factor:rf,
+      cp_list:cpList, cp_daily:cpDaily,
+      cp_centroids:cpCentroids, route_cps_set:routeCpsSet, cps_wc:cpsWC,
+      route_stats:routeStats, route_waypoints:routeWaypoints,
+      jumps:jumps, sim_segs:simSegs,
+      clusterings:clusterings, results:results
+    };
+  });
+  return allData;
+}
+
+// ── Construir IDX ────────────────────────────────────────────────────────
+function buildIDX(allData){
+  var idx={};
+  Object.keys(allData).forEach(function(key){
+    var d=allData[key];
+    idx[key]={hive:d.hive,area:d.area,baseline_dpo:d.baseline_dpo,
+      n_routes:d.n_routes,service_days:d.service_days,n_cps:d.n_cps,
+      n_jumps:d.n_jumps,baseline_n_segs:d.baseline_n_segs,
+      center:d.center,road_factor:d.road_factor};
+  });
+  return idx;
+}
+
+// ── Construir AREA_PROV y PROV_URLS desde cp_list ────────────────────────
+function buildAREA_PROV(allData){
+  var PROV_MAP={
+    "03":"ALICANTE","07":"BALEARES","08":"BARCELONA","11":"CADIZ",
+    "12":"CASTELLON","13":"CIUDAD_REAL","14":"CORDOBA","17":"GIRONA",
+    "18":"GRANADA","21":"HUELVA","23":"JAEN","28":"MADRID",
+    "29":"MALAGA","30":"MURCIA","31":"NAVARRA","33":"ASTURIAS",
+    "36":"PONTEVEDRA","41":"SEVILLA","43":"TARRAGONA","46":"VALENCIA",
+    "47":"VALLADOLID","48":"VIZCAYA","50":"ZARAGOZA"
+  };
+  var BASE="https://cdn.jsdelivr.net/gh/inigoflores/ds-codigos-postales@master/data/";
+  var areaProv={}, provUrls={};
+  Object.keys(allData).forEach(function(key){
+    var cps=allData[key].cp_list;
+    var prefSet={};
+    cps.forEach(function(cp){var p=String(cp).padStart(5,'0').slice(0,2);prefSet[p]=1;});
+    var prefs=Object.keys(prefSet);
+    areaProv[key]=prefs;
+    prefs.forEach(function(p){if(PROV_MAP[p]) provUrls[p]=BASE+PROV_MAP[p]+'.geojson';});
+  });
+  return{areaProv:areaProv,provUrls:provUrls};
+}
+
+// ── Cargar CSV ────────────────────────────────────────────────────────────
+function onCSVLoad(file){
+  if (!file) return;
+  var statusEl=document.getElementById('csv-status');
+  var progressEl=document.getElementById('csv-progress');
+  statusEl.style.color='';
+  statusEl.textContent='Leyendo archivo…';
+  progressEl.style.display='block';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try {
+      statusEl.textContent='Parseando CSV…';
+      var rawRows=parseCSV(e.target.result);
+      if (!rawRows.length) throw new Error('CSV vacío');
+      var fmt=detectFormat(Object.keys(rawRows[0]));
+      if (fmt==='unknown') throw new Error('Formato no reconocido. Columnas esperadas: hive_code o hive');
+      statusEl.textContent='Normalizando '+rawRows.length.toLocaleString()+' filas…';
+      setTimeout(function(){
+        try {
+          var rows=rawRows.map(function(r){return normalizeRow(r,fmt);})
+                         .filter(function(r){return r.hive&&r.area&&!isNaN(r.lat)&&!isNaN(r.lng);});
+          window.NORM_ROWS=rows;  // guardamos las filas normalizadas para poder combinar áreas a posteriori
+          statusEl.textContent='Calculando segmentos, saltos y clustering…';
+          setTimeout(function(){
+            try {
+              ALL_DATA=processRows(rows);
+              var geo=buildAREA_PROV(ALL_DATA);
+              window.IDX=buildIDX(ALL_DATA);
+              window.AREA_PROV=geo.areaProv;
+              window.PROV_URLS=geo.provUrls;
+              progressEl.style.display='none';
+              document.getElementById('screen-csv').style.display='none';
+              buildSelector();
+              document.getElementById('screen-select').style.display='flex';
+            } catch(err){
+              progressEl.style.display='none';
+              statusEl.textContent='Error procesando: '+err.message;
+              statusEl.style.color='#ef4444';
+            }
+          },50);
+        } catch(err){
+          progressEl.style.display='none';
+          statusEl.textContent='Error normalizando: '+err.message;
+          statusEl.style.color='#ef4444';
+        }
+      },50);
+    } catch(err){
+      progressEl.style.display='none';
+      statusEl.textContent='Error leyendo: '+err.message;
+      statusEl.style.color='#ef4444';
+    }
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+// ── Override getAllData ───────────────────────────────────────────────────
+</script>
+
+<script>
+
+// All app logic
+
+// Selector
+
+// ── Construir un área virtual combinada a partir de varias claves de área ──
+function buildCombinedArea(areaKeys){
+  if (!window.NORM_ROWS) return null;
+  var keySet={}; areaKeys.forEach(function(k){keySet[k]=1;});
+  var subset = NORM_ROWS.filter(function(r){return keySet[r.hive+'/'+r.area];});
+  if (!subset.length) return null;
+  // Renombrar todas las filas como si pertenecieran al área combinada
+  var hive = subset[0].hive;
+  var combinedArea = 'COMBINADO_' + areaKeys.map(function(k){return k.split('/')[1];}).join('+');
+  var virtualKey = hive+'/'+combinedArea;
+  // Clonamos las filas con área renombrada para que processRows las trate como una sola
+  var renamed = subset.map(function(r){
+    var c={}; for (var k in r) c[k]=r[k]; c.area=combinedArea; return c;
+  });
+  var processed = processRows(renamed);
+  // Inyectar el área combinada en ALL_DATA / IDX / AREA_PROV / PROV_URLS
+  Object.assign(ALL_DATA, processed);
+  var geo = buildAREA_PROV(processed);
+  Object.assign(window.AREA_PROV, geo.areaProv);
+  Object.assign(window.PROV_URLS, geo.provUrls);
+  var idxNew = buildIDX(processed);
+  Object.assign(window.IDX, idxNew);
+  return virtualKey;
+}
+
+// Borra áreas combinadas previas del IDX/ALL_DATA (no NORM_ROWS)
+function purgeCombinedAreas(){
+  Object.keys(ALL_DATA).forEach(function(k){
+    if (k.indexOf('/COMBINADO_')>=0){
+      delete ALL_DATA[k]; delete IDX[k]; delete AREA_PROV[k];
+    }
+  });
+}
+
+// Estado de multi-selección
+var selectedKeys = new Set();
+
+function refreshSelectorState(){
+  var btn = document.getElementById('go-btn');
+  var n = selectedKeys.size;
+  if (n===0) { btn.disabled=true; btn.textContent='ANALIZAR →'; }
+  else if (n===1) { btn.disabled=false; btn.textContent='ANALIZAR →'; selectedArea=Array.from(selectedKeys)[0]; }
+  else { btn.disabled=false; btn.textContent='ANALIZAR '+n+' ÁREAS JUNTAS →'; }
+}
+
+function buildSelector(){
+  purgeCombinedAreas();  // por si recargamos el selector tras analizar una combinación
+  selectedKeys.clear();
+  var cards=document.getElementById('area-cards');
+  cards.innerHTML='';
+  var areas=Object.entries(IDX).filter(function(e){return e[0].indexOf('/COMBINADO_')<0;})
+                                .sort(function(a,b){return a[0].localeCompare(b[0]);});
+  document.getElementById('area-count-label').innerHTML='ÁREA ('+areas.length+' disponibles · <span style="color:var(--text)">click</span> = una sola, <span style="color:var(--text)">⇧click o ⌘click</span> = combinar varias)';
+  areas.forEach(function(entry){
+    var key=entry[0], meta=entry[1];
+    var dpoClass=meta.baseline_dpo>5?'dpo-r':meta.baseline_dpo>3?'dpo-o':'dpo-g';
+    var div=document.createElement('div');
+    div.className='area-card';
+    div.dataset.key=key;
+    div.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0"><div class="area-check" style="width:14px;height:14px;border:1.5px solid var(--border);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#0d0f14;font-weight:700"></div>'
+      +'<div style="flex:1;min-width:0"><div class="area-name">'+meta.area+'<span style="color:var(--muted);font-weight:400;font-size:9px;margin-left:6px">'+meta.hive.toUpperCase()+'</span></div>'
+      +'<div class="area-meta">'+meta.n_routes+' rutas · '+meta.n_cps+' CPs · '+meta.service_days+' días</div></div></div>'
+      +'<div style="text-align:right;flex-shrink:0"><div class="dpo-badge '+dpoClass+'">'+meta.baseline_dpo.toFixed(2)+' km/ped</div>'
+      +'<div style="font-size:9px;color:var(--muted);margin-top:2px">'+meta.n_jumps+' saltos >10km</div></div>';
+    div.onclick=function(ev){
+      var multi = ev.shiftKey || ev.metaKey || ev.ctrlKey;
+      if (multi){
+        // toggle this card
+        if (selectedKeys.has(key)) selectedKeys.delete(key);
+        else selectedKeys.add(key);
+      } else {
+        // single-select: clear all, select only this
+        selectedKeys.clear();
+        selectedKeys.add(key);
+      }
+      // Re-render check marks
+      document.querySelectorAll('.area-card').forEach(function(c){
+        var sel = selectedKeys.has(c.dataset.key);
+        c.classList.toggle('sel', sel);
+        var chk = c.querySelector('.area-check');
+        if (sel){ chk.style.background='#f97316'; chk.style.borderColor='#f97316'; chk.textContent='✓'; }
+        else { chk.style.background=''; chk.style.borderColor='var(--border)'; chk.textContent=''; }
+      });
+      refreshSelectorState();
+    };
+    cards.appendChild(div);
+  });
+  refreshSelectorState();
+}
+
+// Decompression
+async function getAllData(){
+  return ALL_DATA;
+}
+
+var maps=[], rLg, jLg, corLg, simLineLg;
+var GEO_CACHE={}, geoF={};
+
+function initMaps(center){
+  ['map0','map1','map2','map3'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el._leaflet_id){ try{maps[['map0','map1','map2','map3'].indexOf(id)].remove();}catch(e){} el._leaflet_id=null; el.innerHTML=''; }
+  });
+  maps=[];
+  ['map0','map1','map2','map3'].forEach(function(id){
+    var m=L.map(id,{center:center,zoom:12,preferCanvas:true});
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google',maxZoom:19}).addTo(m);
+    maps.push(m);
+  });
+  rLg=L.layerGroup().addTo(maps[0]);
+  jLg=L.layerGroup().addTo(maps[1]);
+  corLg=L.layerGroup().addTo(maps[2]);
+  simLineLg=L.layerGroup().addTo(maps[3]);
+  maps.forEach(function(m){ L.circleMarker([37.43,-5.97],{radius:9,fillColor:'#f1f5f9',color:'#0d1117',weight:2.5,fillOpacity:.95}).bindPopup('<div class="pt">Colmena</div>').addTo(m); });
+}
+
+async function loadProvinceGeo(prefixes, cpList){
+  // Match by 5-digit padded string (so "07816" matches the GeoJSON entry "07816")
+  var cpSet=new Set(cpList.map(function(c){return String(c).padStart(5,'0');}));
+  for(var i=0;i<prefixes.length;i++){
+    var prefix=prefixes[i]; var url=PROV_URLS[prefix]; if(!url) continue;
+    if(!GEO_CACHE[prefix]){
+      try{ GEO_CACHE[prefix]=await(await fetch(url)).json(); }catch(e){ continue; }
+    }
+    var geo=GEO_CACHE[prefix];
+    // geoF[cp] = ARRAY of features (a CP can have multiple polygons in distinct municipios)
+    (geo.features||[]).forEach(function(f){
+      var raw=(f.properties&&(f.properties.COD_POSTAL||f.properties.cp)||'').toString();
+      var cp=raw.padStart(5,'0');
+      if(cpSet.has(cp)){
+        var num=parseInt(cp);
+        if(!geoF[num]) geoF[num]=[];
+        geoF[num].push(f);
+      }
+    });
+  }
+  // Render base polygons with subtle but visible style (will be overridden by per-corredor colors in tab 2)
+  [0,1,2].forEach(function(i){
+    cpList.forEach(function(cp){
+      var feats=geoF[Number(cp)]; if(!feats||!feats.length) return;
+      feats.forEach(function(f){
+        L.geoJSON(f,{style:function(){return{fillColor:'#4f8ef7',fillOpacity:.10,color:'#4f8ef780',weight:1.2,opacity:.55};}}).addTo(maps[i]);
+      });
+    });
+  });
+  simInitPolygons();
+}
+
+async function loadArea(){
+  var btn=document.getElementById('go-btn');
+  var origText = btn.textContent;
+  btn.textContent='Cargando…'; btn.disabled=true;
+  // Multi-selection: build combined virtual area
+  if (selectedKeys.size > 1) {
+    var combinedKey = buildCombinedArea(Array.from(selectedKeys));
+    if (combinedKey) selectedArea = combinedKey;
+  }
+  var allData=await getAllData();
+  D=allData[selectedArea];
+  btn.textContent='ANALIZAR →'; btn.disabled=false;
+  document.getElementById('app-brand').textContent=D.hive.toUpperCase();
+  var displayArea = D.area.indexOf('COMBINADO_')===0 ? '['+D.area.substring(10).replace(/\+/g,' + ')+']' : D.area;
+  document.getElementById('app-area').textContent=displayArea;
+  var roadDpo=(D.baseline_dpo*(D.road_factor||1));
+  document.getElementById('kpi-dpo').textContent=roadDpo.toFixed(3);
+  document.getElementById('kpi-dpo').title='baseline_dpo × road_factor (se actualiza con OSRM)';
+  document.getElementById('kpi-jumps').textContent=D.n_jumps;
+  document.getElementById('kpi-routes').textContent=D.n_routes;
+  document.getElementById('jumps-hdr').textContent=D.n_jumps+' SALTOS >10KM — ORIGEN/DESTINO';
+  document.getElementById('screen-select').style.display='none';
+  document.getElementById('screen-app').style.display='flex';
+  geoF={};
+  initMaps(D.center);
+  document.getElementById('load0').style.display='block';
+  document.getElementById('load0').textContent='Cargando polígonos…';
+  await loadProvinceGeo(AREA_PROV[selectedArea]||[], D.cp_list);
+  document.getElementById('load0').style.display='none';
+  switchTab(0); filterRoutes(); buildJumpList(); renderAllJumps();
+  // Los clusterings ya vienen calculados desde processArea con la lógica anti-saltos.
+  activeClu=null; renderCorredores();
+  simCors=[]; simActive=0; simPolyLInit=false; simPolyL={};
+  simAddCor();
+  // OSRM background: rutas primero, saltos después (lanzados por osrmAllRoutes al terminar)
+  setTimeout(function(){
+    osrmAllRoutes();       // Tab 0: precalcula DPO y geometría; al terminar lanza osrmJumps()
+    osrmTableForArea();    // Tab 2/3: matriz de distancias CP (independiente)
+  }, 200);
+}
+
+function goBack(){
+  document.getElementById('screen-app').style.display='none';
+  document.getElementById('screen-select').style.display='flex';
+  selectedArea=null;
+  // Rebuild selector to clear combined areas and reset state
+  buildSelector();
+}
+
+// Helpers
+function pop(t,rows){ return '<div class="pt">'+t+'</div>'+rows.map(function(r){return '<div class="pr"><span class="pl">'+r[0]+'</span><span class="pv'+(r[2]?' bad':'')+'">'+r[1]+'</span></div>';}).join(''); }
+function segCol(d){return d>10?'#ef4444':d>5?'#f97316':'#34d399';}
+function shiftCol(s){return s==='morning'?'#60a5fa':s==='afternoon'?'#f97316':'#34d399';}
+function shiftLbl(s){return s==='morning'?'Mañana':s==='afternoon'?'Tarde':'Puente';}
+function hav(la1,lo1,la2,lo2){var R=6371,p=Math.PI/180,dp=(la2-la1)*p,dl=(lo2-lo1)*p;var a=Math.sin(dp/2)*Math.sin(dp/2)+Math.cos(la1*p)*Math.cos(la2*p)*Math.sin(dl/2)*Math.sin(dl/2);return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+
+// ─── OSRM ──────────────────────────────────────────────────────────────────
+var OSRM_BASE='https://router.project-osrm.org';
+
+// Límite de concurrencia simple
+function pLimit(n){
+  var active=0,queue=[];
+  function next(){if(!queue.length||active>=n)return;active++;var fn=queue.shift();fn().finally(function(){active--;next();});}
+  return function(fn){return new Promise(function(res,rej){queue.push(function(){return fn().then(res,rej);});next();});};
+}
+var osrmLimitRoutes=pLimit(4); // para rutas
+var osrmLimitJumps=pLimit(4);  // para saltos (independiente)
+var osrmLimitTable=pLimit(1);  // para /table (una sola llamada)
+
+// /route con todos los waypoints — devuelve {coords:[[lat,lng],...], legs:[{distance_km},...]}
+async function osrmRoute(waypoints){
+  // waypoints: [[lat,lng], ...]
+  var coords=waypoints.map(function(w){return w[1]+','+w[0];}).join(';');
+  var url=OSRM_BASE+'/route/v1/driving/'+coords+'?geometries=geojson&overview=full&steps=false';
+  try{
+    var r=await fetch(url); if(!r.ok)return null;
+    var d=await r.json(); if(!d.routes||!d.routes[0])return null;
+    var route=d.routes[0];
+    var geom=route.geometry.coordinates.map(function(c){return[c[1],c[0]];});
+    var legs=route.legs.map(function(l){return{distance_km:l.distance/1000,duration_s:l.duration};});
+    return{coords:geom,legs:legs,total_km:route.distance/1000,total_duration_s:route.duration};
+  }catch(e){return null;}
+}
+
+// /table para matriz de distancias entre centroides de CP
+// points: [[lat,lng],...] — devuelve matriz NxN en km, o null
+async function osrmTable(points){
+  var coords=points.map(function(p){return p[1]+','+p[0];}).join(';');
+  var url=OSRM_BASE+'/table/v1/driving/'+coords+'?annotations=distance';
+  try{
+    var r=await fetch(url); if(!r.ok)return null;
+    var d=await r.json(); if(!d.distances)return null;
+    // distancias en metros → km
+    return d.distances.map(function(row){return row.map(function(v){return(v||0)/1000;});});
+  }catch(e){return null;}
+}
+
+// ─── TAB 0: Precálculo de todas las rutas en background ────────────────────
+async function osrmAllRoutes(){
+  if(!D||!D.route_stats||!D.route_waypoints)return;
+  var routes=D.route_stats;
+  var done=0, total=routes.length;
+  var progWrap=document.getElementById('osrm-progress-routes');
+  var progBar=document.getElementById('osrm-routes-bar');
+  var progTxt=document.getElementById('osrm-routes-txt');
+  var rcountEl=document.getElementById('rcount');
+  progWrap.style.display='block';
+  progTxt.textContent='0/'+total;
+  progBar.style.width='0%';
+
+  function updateProgress(){
+    done++;
+    var pct=Math.round(done/total*100);
+    progBar.style.width=pct+'%';
+    progTxt.textContent=done+'/'+total;
+  }
+
+  var promises=routes.map(function(r){
+    return osrmLimitRoutes(async function(){
+      var wps=D.route_waypoints[String(r.id)]; if(!wps){updateProgress();return;}
+      var sorted=wps.slice().sort(function(a,b){return a[3]-b[3];});
+      var deliveries=sorted.filter(function(w){return w[4]!==2;});
+      if(deliveries.length<2){updateProgress();return;}
+      var wpCoords=deliveries.map(function(w){return[w[0],w[1]];});
+      var result=await osrmRoute(wpCoords);
+      updateProgress();
+      if(!result)return;
+      var roadKmTotal=result.legs.reduce(function(a,l){return a+l.distance_km;},0);
+      var nStops=deliveries.filter(function(w){return w[4]!==0;}).length;
+      r.dpo_road=nStops>0?roadKmTotal/nStops:0;
+      r.km_road=roadKmTotal;
+      r.duration_s=result.total_duration_s||0;
+      r._osrm_legs=result.legs;
+      r._osrm_coords=result.coords;
+      r._osrm_total_km=result.total_km;
+      // Si esta ruta está activa en el mapa, redibujarla con geometría real
+      if(r.id===activeR) osrmDrawRoute(r.id, sorted);
+      // Actualizar item en lista
+      document.querySelectorAll('#rlist .ri').forEach(function(row){
+        var idEl=row.querySelector('.ri-id'); if(!idEl)return;
+        if(parseFloat(idEl.textContent)===r.id){
+          var dpoEl=row.querySelector('.ri-dpo'); if(!dpoEl)return;
+          dpoEl.textContent=r.dpo_road.toFixed(2)+' km/ped ★';
+          dpoEl.style.color=r.dpo_road>5?'#ef4444':r.dpo_road>3?'#f97316':'#34d399';
+        }
+      });
+    });
+  });
+
+  await Promise.all(promises);
+  _buildSegGeom();
+  filterRoutes();
+  progWrap.style.display='none';
+  if(rcountEl) rcountEl.textContent=total+' rutas';
+  // KPI global
+  var totalKm=0,totalN=0,totalDurS=0;
+  D.route_stats.forEach(function(r){if(r.km_road!=null&&r.n>0){totalKm+=r.km_road;totalN+=r.n;totalDurS+=(r.duration_s||0);}});
+  if(totalN>0){
+    document.getElementById('kpi-dpo').textContent=(totalKm/totalN).toFixed(3);
+    var tpoGlobal=totalDurS/totalN;
+    var tpoEl=document.getElementById('kpi-tpo');
+    tpoEl.textContent=(tpoGlobal/60).toFixed(1)+' min';
+    tpoEl.className='tkv '+(tpoGlobal/60<8?'g':tpoGlobal/60<15?'o':'r');
+  }
+  // Lanzar saltos después de rutas para no saturar OSRM
+  osrmJumps();
+}
+async function osrmDrawRoute(id, sorted){
+  var deliveries=sorted.filter(function(w){return w[4]!==2;});
+  if(deliveries.length<2)return;
+  var stat=D.route_stats.find(function(x){return x.id===id;});
+  var result=null;
+  if(stat&&stat._osrm_coords){
+    // Ya calculado en background — usar directamente
+    result={coords:stat._osrm_coords,legs:stat._osrm_legs,total_km:stat._osrm_total_km};
+  } else {
+    // Fallback: calcular en el momento
+    var load=document.getElementById('load0');
+    load.textContent='Calculando ruta por carretera…'; load.style.display='block';
+    var wps=deliveries.map(function(w){return[w[0],w[1]];});
+    result=await osrmRoute(wps);
+    load.style.display='none';
+    if(!result)return;
+    if(stat){
+      var roadKmTotal=result.legs.reduce(function(a,l){return a+l.distance_km;},0);
+      var nStops=deliveries.filter(function(w){return w[4]!==0;}).length;
+      stat.dpo_road=nStops>0?roadKmTotal/nStops:0;
+      stat.km_road=roadKmTotal;
+      stat.duration_s=result.total_duration_s||0;
+      stat._osrm_legs=result.legs;
+      stat._osrm_coords=result.coords;
+      stat._osrm_total_km=result.total_km;
+      document.querySelectorAll('#rlist .ri').forEach(function(row){
+        if(parseFloat(row.querySelector('.ri-id').textContent)===id){
+          var dpoEl=row.querySelector('.ri-dpo');
+          dpoEl.textContent=stat.dpo_road.toFixed(2)+' km/ped ★';
+          dpoEl.style.color=stat.dpo_road>5?'#ef4444':stat.dpo_road>3?'#f97316':'#34d399';
+        }
+      });
+    }
+  }
+  // Borrar polilíneas rectas ya dibujadas, dejar marcadores
+  var toRemove=[];
+  rLg.eachLayer(function(l){if(l instanceof L.Polyline)toRemove.push(l);});
+  toRemove.forEach(function(l){rLg.removeLayer(l);});
+  var legColors=[];
+  for(var i=1;i<deliveries.length;i++){
+    var p=deliveries[i-1],c=deliveries[i];
+    var isDash=c[5]===0||c[5]===2;
+    var legKm=result.legs[i-1]?result.legs[i-1].distance_km:hav(p[0],p[1],c[0],c[1]);
+    var legDurS=result.legs[i-1]?result.legs[i-1].duration_s:0;
+    legColors.push({col:isDash?'#1e2d40':segCol(legKm),w:isDash?1:(legKm>10?4:2.5),op:isDash?.4:.9,dash:isDash?'5 7':null,km:legKm,dur_s:legDurS,isDash:isDash});
+  }
+  var totalGeomPts=result.coords.length;
+  var cumDist=[0]; var total=0;
+  for(var i=1;i<totalGeomPts;i++){
+    var a=result.coords[i-1],b=result.coords[i];
+    total+=hav(a[0],a[1],b[0],b[1]);
+    cumDist.push(total);
+  }
+  var totalDist=total||1;
+  var legFracs=[]; var cumL=0;
+  result.legs.forEach(function(l){cumL+=l.distance_km; legFracs.push(cumL/result.total_km);});
+  var legPts=[]; var prevIdx=0;
+  legFracs.forEach(function(frac){
+    var endDist=frac*totalDist; var pts=[];
+    for(var i=prevIdx;i<totalGeomPts;i++){
+      pts.push(result.coords[i]);
+      if(cumDist[i]>=endDist&&i<totalGeomPts-1){prevIdx=i;break;}
+      if(i===totalGeomPts-1){prevIdx=i;}
+    }
+    legPts.push(pts);
+  });
+  // Dibujar cada tramo con su color (con km reales)
+  legColors.forEach(function(lc,i){
+    var pts=legPts[i]; if(!pts||pts.length<2)return;
+    L.polyline(pts,{color:lc.col,weight:lc.w,opacity:lc.op,dashArray:lc.dash})
+     .bindPopup(pop('Ruta '+id+' (carretera)',[['Dist. tramo',lc.km.toFixed(2)+' km',lc.km>10&&!lc.isDash],['Tiempo tramo',fmtDur(lc.dur_s),false],['Turno',shiftLbl(stat?stat.shift||'':''),false]]),{maxWidth:200}).addTo(rLg);
+  });
+}
+
+// ─── TAB 1: OSRM Saltos ────────────────────────────────────────────────────
+async function osrmJumps(){
+  if(!D||!D.jumps||!D.jumps.length)return;
+  var total=D.jumps.length;
+  var hdrEl=document.getElementById('jumps-hdr');
+  var progWrap=document.getElementById('osrm-progress-jumps');
+  var progBar=document.getElementById('osrm-jumps-bar');
+  var progTxt=document.getElementById('osrm-jumps-txt');
+  hdrEl.textContent=D.n_jumps+' SALTOS >10KM — calculando…';
+  progWrap.style.display='block';
+  progTxt.textContent='0/'+total;
+  progBar.style.width='0%';
+  jLg.clearLayers();
+  D.jumps_road=new Array(total);
+  var done=0;
+
+  var promises=D.jumps.map(function(j,idx){
+    return osrmLimitJumps(async function(){
+      var res=await osrmRoute([[j[4],j[5]],[j[6],j[7]]]);
+      var roadKm=res?res.total_km:j[3];
+      var geom=res?res.coords:null;
+      done++;
+      progBar.style.width=Math.round(done/total*100)+'%';
+      progTxt.textContent=done+'/'+total;
+      var enriched=[j[0],j[1],j[2],roadKm,j[4],j[5],j[6],j[7],j[3],geom];
+      D.jumps_road[idx]=enriched;
+      // Pintar en el mapa inmediatamente al llegar
+      var col=roadKm>15?'#ef4444':'#f97316';
+      var line=geom&&geom.length>=2?geom:[[j[4],j[5]],[j[6],j[7]]];
+      L.polyline(line,{color:col,weight:2,opacity:.7})
+       .bindPopup(pop('Salto',[['Origen','CP '+fmtCp(j[1]),false],['Destino','CP '+fmtCp(j[2]),false],['Dist. carretera',roadKm.toFixed(2)+' km',true],['Dist. línea recta',j[3].toFixed(2)+' km',false],['Ruta',''+j[0],false]]),{maxWidth:230}).addTo(jLg);
+      L.circleMarker([j[6],j[7]],{radius:4,fillColor:col,color:'#0d1117',weight:1,fillOpacity:.9}).addTo(jLg);
+    });
+  });
+
+  await Promise.all(promises);
+  progWrap.style.display='none';
+  var over10=D.jumps_road.filter(function(j){return j&&j[3]>10;}).length;
+  document.getElementById('kpi-jumps').textContent=over10;
+  hdrEl.textContent=over10+' SALTOS >10KM — CARRETERA';
+  buildJumpList(D.jumps_road);
+}
+
+// ─── OSRM Table para centroides de CP ──────────────────────────────────────
+// Usa las coordenadas medias de los waypoints reales de sim_segs por CP
+// (más preciso que el centroide del polígono administrativo)
+async function osrmTableForArea(){
+  if(!D||!D.cp_list||!D.sim_segs)return;
+
+  var cpCoords={};
+  D.sim_segs.forEach(function(s){
+    [s[1],s[2]].forEach(function(cp,idx){
+      var lat=idx===0?s[4]:s[6], lng=idx===0?s[5]:s[7];
+      var key=String(cp);
+      if(!cpCoords[key]) cpCoords[key]={lat:0,lng:0,n:0};
+      cpCoords[key].lat+=lat; cpCoords[key].lng+=lng; cpCoords[key].n++;
+    });
+  });
+  D.cp_list.forEach(function(cp){
+    var key=String(cp);
+    if(cpCoords[key]) return;
+    var feats=geoF[Number(cp)]; if(!feats||!feats.length) return;
+    var tmp=L.geoJSON({type:'FeatureCollection',features:feats}); var c=tmp.getBounds().getCenter();
+    cpCoords[key]={lat:c.lat,lng:c.lng,n:1};
+  });
+
+  var cpKeys=Object.keys(cpCoords);
+  if(cpKeys.length<2)return;
+
+  // OSRM /table tiene límite de 100 puntos por llamada
+  // Si hay más, usar road_factor hasta que implementemos chunking
+  if(cpKeys.length>100){
+    console.warn('[OSRM] '+cpKeys.length+' CPs > 100, usando road_factor');
+    _refreshRoadDpo(); return;
+  }
+
+  var pts=cpKeys.map(function(cp){
+    var c=cpCoords[cp];
+    return[c.lat/c.n, c.lng/c.n];
+  });
+
+  var matrix=await osrmTable(pts);
+  if(!matrix){ console.warn('[OSRM] /table falló, usando road_factor'); return; }
+
+  D.road_matrix={};
+  cpKeys.forEach(function(cp,i){
+    D.road_matrix[cp]={};
+    cpKeys.forEach(function(cp2,j){
+      D.road_matrix[cp][cp2]=matrix[i][j];
+    });
+  });
+
+  console.log('[OSRM] road_matrix lista: '+cpKeys.length+' CPs');
+  _refreshRoadDpo();
+}
+
+function _refreshRoadDpo(){
+  if(!D||!D.road_matrix||!D.sim_segs)return;
+  _buildSegGeom(); // reconstruir caché de geometría por si llegó después de osrmAllRoutes
+  simRenderResults();
+  simRenderLines(); // redibujar líneas con geometría real
+  renderCorredores();
+}
+
+// TAB 0: RUTAS
+var activeR=null, filtR=[];
+function filterRoutes(){
+  if(!D) return;
+  var q=document.getElementById('routeQ').value.toLowerCase();
+  var srt=document.getElementById('routeSort').value;
+  filtR=D.route_stats.filter(function(r){return !q||String(r.id).includes(q)||r.cps.some(function(c){return String(c).includes(q);});});
+  if(srt==='dpo_d') filtR.sort(function(a,b){return (b.dpo_road??b.dpo)-(a.dpo_road??a.dpo);});
+  else if(srt==='dpo_a') filtR.sort(function(a,b){return (a.dpo_road??a.dpo)-(b.dpo_road??b.dpo);});
+  else if(srt==='dur_d') filtR.sort(function(a,b){return (b.duration_s||0)-(a.duration_s||0);});
+  else if(srt==='dur_a') filtR.sort(function(a,b){return (a.duration_s||0)-(b.duration_s||0);});
+  else if(srt==='n_d') filtR.sort(function(a,b){return b.n-a.n;});
+  else filtR.sort(function(a,b){return a.date.localeCompare(b.date);});
+  var list=document.getElementById('rlist'); list.innerHTML='';
+  document.getElementById('rcount').textContent=filtR.length+' rutas';
+  filtR.forEach(function(r){
+    var dpo=r.dpo_road??r.dpo;
+    var hasRoad=r.dpo_road!=null;
+    var tpo=hasRoad&&r.n>0?r.duration_s/r.n:null; // seg/pedido
+    var div=document.createElement('div'); div.className='ri'+(r.id===activeR?' on':'');
+    div.innerHTML='<div class="sdot" style="background:'+shiftCol(r.shift)+'"></div>'
+      +'<span class="ri-id">'+r.id+'</span>'
+      +'<div class="ri-r"><div class="ri-dpo" style="color:'+(dpo>5?'#ef4444':dpo>3?'#f97316':'#34d399')+'">'+dpo.toFixed(2)+' km/ped'+(hasRoad?'<span style="font-size:8px;color:var(--muted);margin-left:3px">★</span>':'')+(tpo?' <span style="font-size:9px;font-weight:400;color:var(--muted)">· '+fmtDur(tpo)+'/ped</span>':'')+'</div>'
+      +'<div class="ri-m">'+r.n+' ped · '+(r.n_stops||r.n)+' par · '+(r.km_road!=null?r.km_road.toFixed(1):(r.km||0).toFixed(1))+' km'+(r.duration_s?' · '+fmtDur(r.duration_s):'')+' · '+shiftLbl(r.shift)+' · '+r.date+'</div></div>';
+    div.onclick=function(){selectRoute(r.id);}; list.appendChild(div);
+  });
+}
+function selectRoute(id){
+  activeR=id; rLg.clearLayers();
+  document.querySelectorAll('#rlist .ri').forEach(function(el){el.classList.toggle('on',parseFloat(el.querySelector('.ri-id').textContent)===id);});
+  var wps=D.route_waypoints[String(id)]; if(!wps) return;
+  var sorted=wps.slice().sort(function(a,b){return a[3]-b[3];}); var bounds=[];
+  for(var i=1;i<sorted.length;i++){
+    var p=sorted[i-1],c=sorted[i]; var isDash=c[5]===0||c[5]===2;
+    var d=hav(p[0],p[1],c[0],c[1]);
+    L.polyline([[p[0],p[1]],[c[0],c[1]]],{color:isDash?'#1e2d40':segCol(d),weight:isDash?1:(d>10?4:2.5),opacity:isDash?.4:.9,dashArray:isDash?'5 7':null})
+     .bindPopup((function(){var rr=D.route_stats.find(function(x){return x.id===id;})||{};return pop('Ruta '+id,[['Pedidos',rr.n||'—',false],['Paradas',rr.n_stops||rr.n||'—',false],['Distancia',d.toFixed(2)+' km',d>10&&!isDash],['Turno',shiftLbl(rr.shift||''),false]]);})(),{maxWidth:210}).addTo(rLg);
+    bounds.push([p[0],p[1]],[c[0],c[1]]);
+  }
+  var sn=1;
+  sorted.forEach(function(wp){
+    if(wp[4]===2) return; var isS=wp[4]===0;
+    L.circleMarker([wp[0],wp[1]],{radius:isS?9:8,fillColor:isS?'#f97316':'#34d399',color:'#0d1117',weight:2,fillOpacity:.95})
+     .bindPopup(pop(isS?'Colmena':'Parada #'+sn,[['CP',''+wp[2],false]]),{maxWidth:180}).addTo(rLg);
+    if(!isS){L.marker([wp[0],wp[1]],{icon:L.divIcon({html:'<span style="font-size:9px;font-weight:700;color:#0d1117;font-family:monospace">'+sn+'</span>',className:'',iconSize:[14,14],iconAnchor:[7,7]}),interactive:false}).addTo(rLg); sn++;}
+    bounds.push([wp[0],wp[1]]);
+  });
+  if(bounds.length) maps[0].fitBounds(bounds,{padding:[50,50]});
+  // OSRM: dibujar geometría real por carretera (asíncrono, reemplaza las líneas rectas)
+  osrmDrawRoute(id, sorted);
+}
+
+// TAB 1: SALTOS
+var activeJcp=null;
+function buildJumpList(jumpsArr){
+  var src=jumpsArr||(D.jumps_road||D.jumps);
+  var byCp={};
+  src.forEach(function(j){[j[1],j[2]].forEach(function(cp){if(!byCp[cp])byCp[cp]=[];byCp[cp].push(j);});});
+  var list=document.getElementById('jlist'); list.innerHTML='';
+  if(Object.keys(byCp).length===0){list.innerHTML='<div style="padding:16px;color:var(--muted);font-size:11px;font-family:monospace">Sin saltos >10km</div>';return;}
+  Object.entries(byCp).sort(function(a,b){return b[1].length-a[1].length;}).forEach(function(entry){
+    var cp=entry[0],jmps=entry[1];
+    var avg=(jmps.reduce(function(s,j){return s+j[3];},0)/jmps.length).toFixed(1);
+    var max=Math.max.apply(null,jmps.map(function(j){return j[3];})).toFixed(1);
+    var div=document.createElement('div'); div.className='ji'+(activeJcp===parseInt(cp)?' on':'');
+    div.innerHTML='<div class="ji-cp">CP '+fmtCp(cp)+'</div><div class="ji-m">'+jmps.length+' saltos · avg '+avg+' km · máx '+max+' km</div>';
+    div.onclick=function(){selectJumpCp(parseInt(cp));}; list.appendChild(div);
+  });
+}
+function renderAllJumps(){
+  jLg.clearLayers();
+  var src=D.jumps_road||D.jumps;
+  src.forEach(function(j){
+    var col=j[3]>15?'#ef4444':'#f97316';
+    var line=j[9]&&j[9].length>=2?j[9]:[[j[4],j[5]],[j[6],j[7]]];
+    var hasRoad=j[9]!=null;
+    L.polyline(line,{color:col,weight:2,opacity:.7})
+     .bindPopup(pop('Salto',[['Origen','CP '+fmtCp(j[1]),false],['Destino','CP '+fmtCp(j[2]),false],['Dist.'+(hasRoad?' carretera':''),j[3].toFixed(2)+' km',true],['Ruta',''+j[0],false]]),{maxWidth:210}).addTo(jLg);
+    L.circleMarker([j[6],j[7]],{radius:4,fillColor:col,color:'#0d1117',weight:1,fillOpacity:.9}).addTo(jLg);
+  });
+}
+function selectJumpCp(cp){
+  activeJcp=cp;
+  document.querySelectorAll('.ji').forEach(function(el){el.classList.remove('on');});
+  document.querySelectorAll('.ji').forEach(function(el){if(el.querySelector('.ji-cp').textContent==='CP '+cp) el.classList.add('on');});
+  jLg.clearLayers();
+  var src=D.jumps_road||D.jumps;
+  // Saltos sin este CP: fondo atenuado
+  src.filter(function(j){return j[1]!==cp&&j[2]!==cp;}).forEach(function(j){
+    var line=j[9]&&j[9].length>=2?j[9]:[[j[4],j[5]],[j[6],j[7]]];
+    L.polyline(line,{color:'#1e2533',weight:1,opacity:.35}).addTo(jLg);
+  });
+  var bounds=[];
+  src.filter(function(j){return j[1]===cp||j[2]===cp;}).forEach(function(j){
+    var col=j[3]>15?'#ef4444':'#f97316'; var isOrig=j[1]===cp;
+    var line=j[9]&&j[9].length>=2?j[9]:[[j[4],j[5]],[j[6],j[7]]];
+    var hasRoad=j[9]!=null;
+    L.polyline(line,{color:col,weight:3,opacity:.9})
+     .bindPopup(pop('CP '+fmtCp(cp)+(isOrig?' como origen':' como destino'),[['Origen','CP '+fmtCp(j[1]),false],['Destino','CP '+fmtCp(j[2]),false],['Dist.'+(hasRoad?' carretera':''),j[3].toFixed(2)+' km',true],['Ruta',''+j[0],false]]),{maxWidth:220}).addTo(jLg);
+    L.circleMarker([j[4],j[5]],{radius:isOrig?8:4,fillColor:isOrig?col:'#475569',color:'#0d1117',weight:isOrig?2:1,fillOpacity:.9}).addTo(jLg);
+    L.circleMarker([j[6],j[7]],{radius:isOrig?4:8,fillColor:isOrig?'#475569':col,color:'#0d1117',weight:isOrig?1:2,fillOpacity:.9}).addTo(jLg);
+    bounds.push([j[4],j[5]],[j[6],j[7]]);
+  });
+  if(bounds.length) maps[1].fitBounds(bounds,{padding:[50,50]});
+}
+
+// TAB 2: CORREDORES
+var COR_PAL=[['#3b82f6','#f97316'],['#3b82f6','#f97316','#a78bfa'],['#3b82f6','#f97316','#a78bfa','#34d399']];
+var COR_NAMES={1:'A',2:'B',3:'C',4:'D'};
+var activeClu=null;
+
+
+function renderCorredores(){
+  if(!D) return; corLg.clearLayers();
+  var avail=Object.keys(D.clusterings||{}).map(Number).sort();
+  var btnsEl=document.getElementById('cor-btns'); btnsEl.innerHTML='';
+  if(avail.length===0){
+    document.getElementById('cor-panel').innerHTML='<div style="padding:16px;color:var(--muted);font-size:11px;font-family:monospace">Clustering no disponible (pocos CPs)</div>';
+    document.getElementById('cor-baseline').textContent=D.baseline_dpo.toFixed(3)+' km/ped'; return;
+  }
+  if(!activeClu||avail.indexOf(activeClu)<0) activeClu=avail[0];
+  avail.forEach(function(k){
+    var btn=document.createElement('button'); btn.className='ctbtn'+(k===activeClu?' on':'');
+    btn.textContent=k+' CORREDORES';
+    btn.onclick=function(){activeClu=k;renderCorredores();};
+    btnsEl.appendChild(btn);
+  });
+  var results=D.results[String(activeClu)];
+  var assign=D.clusterings[String(activeClu)];
+  var pal=COR_PAL[activeClu-2]||COR_PAL[COR_PAL.length-1];
+  var rf=D.road_factor||1;
+  var allCpSet=new Set(D.cp_list.map(String));
+  // Baseline = simComputeDpo(todos los CPs) — misma función que corredores → % coherente por carretera
+  var baseRoad=(D.sim_segs?simComputeDpo(allCpSet).dpo:0)||D.baseline_dpo*rf;
+
+  function displayDpo(v){
+    if(D.road_matrix&&v.cps&&v.cps.length>=2){
+      var cpSet=new Set(v.cps.map(String));
+      var km=0,ns=0;
+      (D.sim_segs||[]).forEach(function(s){
+        var k1=String(s[1]),k2=String(s[2]);
+        if(!cpSet.has(k1)||!cpSet.has(k2))return;
+        var d=k1===k2?s[3]*rf:(D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf);
+        km+=d; ns++;
+      });
+      return ns>0?km/ns:v.dpo*rf;
+    }
+    return v.dpo*rf;
+  }
+  function displayTpo(v){
+    var hasTM=D.time_matrix&&Object.keys(D.time_matrix).length>0;
+    if(!hasTM) return null;
+    var cpSet=new Set(v.cps.map(String));
+    var dur=0,ns=0;
+    (D.sim_segs||[]).forEach(function(s){
+      var k1=String(s[1]),k2=String(s[2]);
+      if(!cpSet.has(k1)||!cpSet.has(k2))return;
+      var t=(D.time_matrix[k1]&&D.time_matrix[k1][k2])||null;
+      if(t==null){var d=k1===k2?s[3]*rf:(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf); t=(d/30)*3600;}
+      dur+=t; ns++;
+    });
+    return ns>0?dur/ns:null;
+  }
+  var baseTpoRes=simComputeDpo(allCpSet);
+  var baseTpo=baseTpoRes.tpo||null;
+  var hasTM=D.time_matrix&&Object.keys(D.time_matrix).length>0;
+
+  var total=results._total;
+  // DPO de corredores: promedio ponderado por segs de cada corredor individual
+  // (excluye los segs inter-corredor, que es el efecto que queremos medir)
+  var corEntries=Object.entries(results).filter(function(e){return e[0]!=='_total';});
+  var sumKm=0, sumNs=0, sumDur=0;
+  corEntries.forEach(function(entry){
+    var v=entry[1];
+    var vDpo=displayDpo(v);
+    var vTpo=displayTpo(v);
+    sumKm+=vDpo*v.n_segs; sumNs+=v.n_segs;
+    if(vTpo!=null) sumDur+=vTpo*v.n_segs;
+  });
+  var totalDisplayDpo=sumNs>0?sumKm/sumNs:baseRoad;
+  var totalDisplayTpo=hasTM&&sumNs>0?sumDur/sumNs:null;
+  var imp=baseRoad>0?((baseRoad-totalDisplayDpo)/baseRoad*100).toFixed(1):'0';
+  var impT=hasTM&&baseTpo&&totalDisplayTpo!=null?((baseTpo-totalDisplayTpo)/baseTpo*100).toFixed(1):null;
+  document.getElementById('cor-baseline').textContent=baseRoad.toFixed(3)+' km/ped'+(hasTM?' · '+(baseTpo/60).toFixed(1)+' min/ped':'')+(D.road_matrix?' [OSRM]':' [×'+rf+']');
+  document.getElementById('cor-dpo').textContent=totalDisplayDpo.toFixed(3)+' km/ped'+(totalDisplayTpo!=null?' · '+(totalDisplayTpo/60).toFixed(1)+' min/ped':'');
+  document.getElementById('cor-imp').textContent=(parseFloat(imp)>=0?'-'+imp:'+'+Math.abs(parseFloat(imp)).toFixed(1))+'%'+(impT!=null?' km / '+(parseFloat(impT)>=0?'-'+impT:'+'+Math.abs(parseFloat(impT)).toFixed(1))+'% t':'');
+  document.getElementById('cor-imp').style.color=parseFloat(imp)>=0?'#34d399':'#ef4444';
+  // Saltos eliminados: los que cruzan fronteras de corredor
+  var jKmElim=total.jumps_km_eliminated||0, jKmRem=total.jumps_km_remaining||0;
+  var jKmTotal=jKmElim+jKmRem;
+  var jElim=total.jumps_eliminated||0, jRem=total.jumps_remaining||0;
+  var jPct=jKmTotal>0?(jKmElim/jKmTotal*100):0;
+  var jumpsElEl=document.getElementById('cor-jumps-elim');
+  if(jumpsElEl){
+    jumpsElEl.textContent=jElim+' ('+jKmElim.toFixed(1)+' km · '+jPct.toFixed(0)+'%)';
+    jumpsElEl.style.color=jPct>=70?'#34d399':jPct>=40?'#f97316':'#ef4444';
+  }
+  document.getElementById('cor-excl').textContent=total.excluded_segs+' segs excluidos';
+  var panel=document.getElementById('cor-panel'); panel.innerHTML='';
+  var sum=document.createElement('div');
+  sum.style.cssText='background:var(--bg3);border-radius:6px;padding:9px 11px;border:1px solid var(--border)';
+  sum.innerHTML='<div style="font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:7px">RESUMEN '+activeClu+' CORREDORES'+(D.road_matrix?' <span style="color:#34d399">✓ OSRM</span>':' <span style="color:#f97316">× factor '+rf+'</span>')+'</div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">km/ped actual</span><span style="font-family:monospace;color:#f97316;font-weight:600">'+baseRoad.toFixed(3)+'</span></div>'
+    +(hasTM&&baseTpo?'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">min/ped actual</span><span style="font-family:monospace;color:#f97316;font-weight:600">'+(baseTpo/60).toFixed(1)+' min</span></div>':'')
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">km/ped corredores</span><span style="font-family:monospace;color:#34d399;font-weight:600">'+totalDisplayDpo.toFixed(3)+'</span></div>'
+    +(totalDisplayTpo!=null?'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">min/ped corredores</span><span style="font-family:monospace;color:#34d399;font-weight:600">'+(totalDisplayTpo/60).toFixed(1)+' min</span></div>':'')
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:'+(impT!=null?'3':'7')+'px"><span style="color:var(--muted)">mejora km</span><span style="font-family:monospace;color:'+(parseFloat(imp)>=0?'#34d399':'#ef4444')+';font-weight:600">'+(parseFloat(imp)>=0?'-'+imp:'+'+Math.abs(parseFloat(imp)).toFixed(1))+'%</span></div>'
+    +(impT!=null?'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:7px"><span style="color:var(--muted)">mejora tiempo</span><span style="font-family:monospace;color:'+(parseFloat(impT)>=0?'#34d399':'#ef4444')+';font-weight:600">'+(parseFloat(impT)>=0?'-'+impT:'+'+Math.abs(parseFloat(impT)).toFixed(1))+'%</span></div>':'')
+    +'<div class="imp-bar"><div class="imp-fill" style="width:'+Math.min(imp,100)+'%;background:#34d399"></div></div>'
+    +'<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border)">'
+    +'<div style="font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:5px">SALTOS &gt;10KM</div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">eliminados (cross)</span><span style="font-family:monospace;color:#34d399;font-weight:600">'+jElim+' · '+jKmElim.toFixed(1)+' km</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px"><span style="color:var(--muted)">residuales (intra)</span><span style="font-family:monospace;color:#ef4444;font-weight:600">'+jRem+' · '+jKmRem.toFixed(1)+' km</span></div>'
+    +'<div class="imp-bar"><div class="imp-fill" style="width:'+jPct.toFixed(0)+'%;background:'+(jPct>=70?'#34d399':jPct>=40?'#f97316':'#ef4444')+'"></div></div>'
+    +'<div style="font-size:9px;color:var(--muted);text-align:right;margin-top:3px;font-family:monospace">'+jPct.toFixed(0)+'% km eliminados</div>'
+    +'</div>'
+    +'<div style="font-size:9px;color:var(--muted);margin-top:7px">'+total.excluded_segs+' segs inter-corredor · '+D.cp_list.reduce(function(s,cp){return s+(D.cp_daily[String(cp)]||0);},0).toFixed(1)+' ped/día total · '+D.service_days+' días</div>';
+  panel.appendChild(sum);
+  Object.entries(results).filter(function(e){return e[0]!=='_total';}).forEach(function(entry){
+    var cor=entry[0],v=entry[1];
+    var col=pal[parseInt(cor)-1]||'#888';
+    var vDisplayDpo=displayDpo(v);
+    var vDisplayTpo=displayTpo(v);
+    var ci=baseRoad>0?((baseRoad-vDisplayDpo)/baseRoad*100).toFixed(1):'0';
+    var ciT=hasTM&&baseTpo&&vDisplayTpo!=null?((baseTpo-vDisplayTpo)/baseTpo*100).toFixed(1):null;
+    var card=document.createElement('div'); card.className='cor-card'; card.style.borderColor=col+'44';
+    card.innerHTML='<div class="cor-card-hdr" style="background:'+col+'12"><div style="width:10px;height:10px;border-radius:2px;background:'+col+';flex-shrink:0"></div>'
+      +'<span class="cor-card-name" style="color:'+col+'">Corredor '+(COR_NAMES[cor]||cor)+'</span>'
+      +'<span style="font-family:monospace;font-size:10px;color:'+col+';font-weight:600">'+vDisplayDpo.toFixed(3)+(vDisplayTpo!=null?' · '+(vDisplayTpo/60).toFixed(1)+'\'':'')+'</span></div>'
+      +'<div class="cor-card-body"><div class="cst"><span class="cst-l">Segs intra</span><span class="cst-v">'+v.n_segs+'</span></div>'
+      +'<div class="cst"><span class="cst-l">Rutas</span><span class="cst-v">'+v.n_routes+'</span></div>'
+      +'<div class="cst"><span class="cst-l">Pedidos/día</span><span class="cst-v">'+v.cps.reduce(function(s,cp){return s+(D.cp_daily[String(cp)]||0);},0).toFixed(1)+'</span></div>'
+      +'<div class="cst"><span class="cst-l">Mejora km</span><span class="cst-v" style="color:'+(parseFloat(ci)>0?'#34d399':'#ef4444')+'">'+(parseFloat(ci)>0?'-'+ci:'+'+Math.abs(parseFloat(ci)).toFixed(1))+'%</span></div>'
+      +(ciT!=null?'<div class="cst"><span class="cst-l">Mejora tiempo</span><span class="cst-v" style="color:'+(parseFloat(ciT)>0?'#34d399':'#ef4444')+'">'+(parseFloat(ciT)>0?'-'+ciT:'+'+Math.abs(parseFloat(ciT)).toFixed(1))+'%</span></div>':'')
+      +'<div class="imp-bar"><div class="imp-fill" style="width:'+Math.min(Math.abs(ci),100)+'%;background:'+col+'"></div></div></div>'
+      +'<div class="cor-chips">'+v.cps.map(function(cp){return '<span class="chip" style="background:'+col+'20;color:'+col+'">'+fmtCp(cp)+'</span>';}).join('')+'</div>';
+    panel.appendChild(card);
+    v.cps.forEach(function(cp){
+      var feats=geoF[cp]; if(!feats||!feats.length) return;
+      var bounds=null;
+      feats.forEach(function(feat){
+        L.geoJSON(feat,{style:function(){return{fillColor:col,fillOpacity:.55,color:col,weight:1.5,opacity:.85};},
+          onEachFeature:function(f,layer){
+            layer.on({
+              mouseover:function(e){e.target.setStyle({fillOpacity:.75,weight:2.5});e.target.bringToFront();},
+              mouseout:function(e){e.target.setStyle({fillColor:col,fillOpacity:.55,color:col,weight:1.5,opacity:.85});},
+              click:function(e){L.popup().setLatLng(e.latlng).setContent(pop('CP '+fmtCp(cp),[['Corredor','Corredor '+(COR_NAMES[cor]||cor),false],['km/ped',vDisplayDpo.toFixed(3),false]])).openOn(maps[2]);}
+            });
+            if(!bounds) bounds=layer.getBounds();
+          }}).addTo(corLg);
+      });
+      // Label only at first polygon centroid (avoid duplicates for CPs with multiple polys)
+      if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span style="font-family:monospace;font-size:10px;font-weight:700;color:#fff;text-shadow:-1px -1px 0 #0d0f14,1px -1px 0 #0d0f14,-1px 1px 0 #0d0f14,1px 1px 0 #0d0f14,0 0 5px #0d0f14;white-space:nowrap">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(corLg);
+    });
+  });
+}
+
+// TAB 3: SIMULACIÓN
+var SIM_PAL=['#3b82f6','#f97316','#a78bfa','#34d399','#f43f5e','#fbbf24','#22d3ee'];
+var RESIDUAL='#475569';
+var simCors=[], simActive=0, simPolyL={}, simPolyLInit=false;
+function simAssigned(){var s=new Set();simCors.forEach(function(c){c.cps.forEach(function(cp){s.add(cp);});});return s;}
+function simUnassigned(){var a=simAssigned();return(D?D.cp_list:[]).filter(function(cp){return!a.has(cp);});}
+function simCpCor(cp){for(var i=0;i<simCors.length;i++){if(simCors[i].cps.has(cp))return simCors[i];}return null;}
+function simCpCol(cp){var c=simCpCor(cp);return c?c.color:RESIDUAL;}
+function simAddCor(){
+  if(simCors.length>=SIM_PAL.length)return;
+  var i=simCors.length;
+  simCors.push({id:i,name:'Corredor '+(i+1),cps:new Set(),color:SIM_PAL[i]});
+  simActive=i; simRenderAll();
+}
+function simRemoveCor(idx){
+  if(simCors.length<=1)return;
+  simCors.splice(idx,1);
+  simCors.forEach(function(c,i){c.id=i;c.name='Corredor '+(i+1);c.color=SIM_PAL[i];});
+  simActive=Math.max(0,Math.min(simActive,simCors.length-1));
+  simRenderAll();
+}
+function simToggleCp(cp){
+  if(!simCors.length)return;
+  var cor=simCors[simActive];
+  for(var i=0;i<simCors.length;i++){if(simCors[i]!==cor&&simCors[i].cps.has(cp))return;}
+  if(cor.cps.has(cp)) cor.cps.delete(cp); else cor.cps.add(cp);
+  simRenderAll();
+}
+function simPolyStyle(cp){
+  var cor=simCpCor(cp);
+  if(cor) return{fillColor:cor.color,fillOpacity:.55,color:cor.color,weight:2.5,opacity:.95};
+  var ac=simCors[simActive];
+  if(ac) return{fillColor:ac.color,fillOpacity:.07,color:ac.color,weight:1,opacity:.4};
+  return{fillColor:'#4f8ef7',fillOpacity:.08,color:'#4f8ef730',weight:1};
+}
+function simPolyHoverStyle(cp){
+  var cor=simCpCor(cp);
+  var col=cor?cor.color:(simCors[simActive]?simCors[simActive].color:'#4f8ef7');
+  return{fillColor:col,fillOpacity:.80,color:col,weight:3,opacity:1};
+}
+function simInitPolygons(){
+  simPolyL={};
+  if(!D) return;
+  D.cp_list.forEach(function(cp){
+    var feats=geoF[cp]; if(!feats||!feats.length) return;
+    var lyrs=[], bounds=null;
+    feats.forEach(function(feat){
+      var lyr=L.geoJSON(feat,{style:function(){return simPolyStyle(cp);},
+        onEachFeature:function(f,layer){
+          layer.on({
+            click:function(){simToggleCp(cp);},
+            mouseover:function(e){e.target.setStyle(simPolyHoverStyle(cp));e.target.bringToFront();},
+            mouseout:function(e){e.target.setStyle(simPolyStyle(cp));}
+          });
+          if(!bounds) bounds=layer.getBounds();
+        }}).addTo(maps[3]);
+      lyrs.push(lyr);
+    });
+    if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span id="slbl'+cp+'" style="font-family:monospace;font-size:10px;font-weight:700;color:#fff;text-shadow:-1px -1px 0 #0d0f14,1px -1px 0 #0d0f14,-1px 1px 0 #0d0f14,1px 1px 0 #0d0f14,0 0 5px #0d0f14;white-space:nowrap;pointer-events:none">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(maps[3]);
+    simPolyL[cp]=lyrs;  // now an array of layers per CP
+  });
+  simPolyLInit=true;
+}
+function simUpdatePolys(){
+  if(!simPolyLInit||!D)return;
+  var sel=simAssigned();
+  D.cp_list.forEach(function(cp){
+    if(simPolyL[cp]&&simPolyL[cp].forEach){
+      var isSel=sel.has(cp);
+      simPolyL[cp].forEach(function(lyr){
+        lyr.eachLayer(function(l){
+          l.setStyle(simPolyStyle(cp));
+          if(isSel) l.bringToFront();
+        });
+      });
+    }
+  });
+}
+function simRenderTabs(){
+  var wrap=document.getElementById('sim-cor-tabs'); wrap.innerHTML='';
+  simCors.forEach(function(c,i){
+    var btn=document.createElement('button'); var isA=i===simActive;
+    btn.style.cssText='font-family:monospace;font-size:9px;padding:3px 8px;border-radius:3px;cursor:pointer;border:1px solid '+c.color+';color:'+(isA?'#0d0f14':c.color)+';background:'+(isA?c.color:'transparent')+';transition:all .1s';
+    btn.textContent=c.name+(c.cps.size?' ('+c.cps.size+')':'');
+    btn.title='Clic derecho para eliminar';
+    btn.onclick=function(){simActive=i;simRenderAll();};
+    btn.oncontextmenu=function(e){e.preventDefault();simRemoveCor(i);};
+    wrap.appendChild(btn);
+  });
+  if(simCors.length<SIM_PAL.length){
+    var add=document.createElement('button'); add.className='btn-add'; add.textContent='+ Corredor'; add.onclick=simAddCor;
+    wrap.appendChild(add);
+  }
+}
+function simRenderCpGrid(){
+  var grid=document.getElementById('sim-cp-grid');
+  var label=document.getElementById('sim-cp-label');
+  grid.innerHTML='';
+  if(!simCors.length||!D){label.textContent='Crea un corredor';return;}
+  var cor=simCors[simActive];
+  label.textContent='CPs PARA "'+cor.name.toUpperCase()+'"';
+  var assigned=simAssigned();
+  D.cp_list.forEach(function(cp){
+    var inThis=cor.cps.has(cp); var inOther=!inThis&&assigned.has(cp); if(inOther)return;
+    var btn=document.createElement('button');
+    btn.style.cssText='font-family:monospace;font-size:11px;padding:4px 8px;border-radius:4px;cursor:pointer;transition:all .1s;border:1px solid '+(inThis?cor.color:'var(--border)')+';color:'+(inThis?cor.color:'var(--muted)')+';background:'+(inThis?cor.color+'20':'transparent');
+    btn.textContent=cp; btn.onclick=function(){simToggleCp(cp);};
+    grid.appendChild(btn);
+  });
+}
+function simComputeDpo(cpSet){
+  if(!D) return{km:0,dur_s:0,ns:0,routes:0,dpo:0,tpo:0};
+  var arr=[]; cpSet.forEach(function(cp){arr.push(String(cp));});
+  var intra=D.sim_segs.filter(function(s){return arr.indexOf(String(s[1]))>=0&&arr.indexOf(String(s[2]))>=0;});
+  var km=0, dur_s=0;
+  intra.forEach(function(s){
+    var k1=String(s[1]),k2=String(s[2]);
+    var d,t;
+    if(k1===k2){
+      d=s[3]*(D.road_factor||1);
+      t=d>0?(d/30)*3600:0; // ~30km/h urbano para intra-CP
+    } else if(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0){
+      d=D.road_matrix[k1][k2];
+      t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/30)*3600);
+    } else {
+      d=s[3]*(D.road_factor||1);
+      t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/30)*3600);
+    }
+    km+=d; dur_s+=t;
+  });
+  var ns=intra.length;
+  var routes=new Set(intra.map(function(s){return s[0];})).size;
+  return{km:km,dur_s:dur_s,ns:ns,routes:routes,dpo:ns>0?km/ns:0,tpo:ns>0?dur_s/ns:0};
+}
+function simRenderResults(){
+  var panel=document.getElementById('sim-results'); panel.innerHTML='';
+  var legend=document.getElementById('sim-legend');
+  legend.innerHTML='<div class="li"><div class="ld" style="background:transparent;border-top:1px dashed #475569;height:0"></div><span>Sin asignar</span></div>';
+  if(!D) return;
+  var rf=D.road_factor||1;
+  var roadSrc=D.road_matrix?'OSRM':'×'+rf;
+
+  // Baseline = simComputeDpo sobre TODOS los CPs con road_matrix (o haversine*rf si no hay)
+  // Corredor  = simComputeDpo sobre sus CPs — misma función, misma fuente → % coherente
+  // Cuando todos los CPs están en un corredor: corredor.dpo === baseRoad → 0%
+  var allCpSet=new Set(D.cp_list.map(String));
+  var baseRes=simComputeDpo(allCpSet);
+  var baseRoad=baseRes.dpo||D.baseline_dpo*rf;
+  var baseTpo=baseRes.tpo; // seg/pedido baseline
+  var totalW=0,totalWt=0,totalSegs=0;
+  simCors.forEach(function(cor){
+    var st=simComputeDpo(cor.cps);
+    totalW+=st.dpo*st.ns; totalWt+=st.tpo*st.ns; totalSegs+=st.ns;
+    var imp=baseRoad>0?(baseRoad-st.dpo)/baseRoad*100:0;
+    var impT=baseTpo>0?(baseTpo-st.tpo)/baseTpo*100:0;
+    var hasTpo=D.time_matrix&&Object.keys(D.time_matrix).length>0;
+    var pdDay=0; cor.cps.forEach(function(cp){pdDay+=(D.cp_daily[String(cp)]||0);});
+    var card=document.createElement('div');
+    card.style.cssText='padding:8px 10px;border-bottom:1px solid var(--border);border-left:3px solid '+cor.color;
+    card.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
+      +'<span style="font-family:monospace;font-size:10px;font-weight:600;color:'+cor.color+'">'+cor.name+'</span>'
+      +'<span style="font-family:monospace;font-size:9px;color:var(--muted);margin-left:auto">'+cor.cps.size+' CPs</span></div>'
+      +'<div style="display:flex;gap:5px;margin-bottom:4px">'
+      +'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v '+(st.dpo<(baseRoad*0.8)?'g':st.dpo<baseRoad?'o':'r')+'" style="font-size:13px">'+(st.ns>0?st.dpo.toFixed(3):'—')+'</div><div class="sim-kpi-l">KM/PED</div></div>'
+      +'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v '+(imp>0?'g':'r')+'" style="font-size:13px">'+(st.ns>0?(imp>0?'-':'+')+Math.abs(imp).toFixed(1)+'%':'—')+'</div><div class="sim-kpi-l">MEJORA KM</div></div>'
+      +(hasTpo?'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v '+(st.tpo<(baseTpo*0.8)?'g':st.tpo<baseTpo?'o':'r')+'" style="font-size:13px">'+(st.ns>0?(st.tpo/60).toFixed(1)+'\'':'—')+'</div><div class="sim-kpi-l">MIN/PED</div></div>'
+      +'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v '+(impT>0?'g':'r')+'" style="font-size:13px">'+(st.ns>0?(impT>0?'-':'+')+Math.abs(impT).toFixed(1)+'%':'—')+'</div><div class="sim-kpi-l">MEJORA T</div></div>':'')
+      +'</div>'
+      +'<div style="font-size:9px;color:var(--muted);font-family:monospace;margin-bottom:2px">'+st.ns+' segs · '+st.routes+' rutas'+(hasTpo?' · '+fmtDur(st.dur_s):'')+' total</div>'
+      +'<div style="font-size:9px;font-family:monospace;color:'+cor.color+';font-weight:600;margin-bottom:4px">'+pdDay.toFixed(1)+' ped/día · '+D.service_days+' días</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:3px">'+Array.from(cor.cps).sort().map(function(cp){return '<span style="font-family:monospace;font-size:9px;padding:1px 5px;border-radius:3px;background:'+cor.color+'20;color:'+cor.color+'">'+fmtCp(cp)+'</span>';}).join('')+'</div>';
+    panel.appendChild(card);
+    var li=document.createElement('div'); li.className='li';
+    li.innerHTML='<div class="ld" style="background:'+cor.color+'"></div><span>'+cor.name+'</span>';
+    legend.appendChild(li);
+  });
+  var unass=simUnassigned();
+  var resS=simComputeDpo(new Set(unass)); totalW+=resS.dpo*resS.ns; totalWt+=resS.tpo*resS.ns; totalSegs+=resS.ns;
+  var globalDpo=totalSegs>0?totalW/totalSegs:0;
+  var globalTpo=totalSegs>0?totalWt/totalSegs:0;
+  var globalImp=baseRoad>0?(baseRoad-globalDpo)/baseRoad*100:0;
+  var globalImpT=baseTpo>0?(baseTpo-globalTpo)/baseTpo*100:0;
+  var hasTpo=D.time_matrix&&Object.keys(D.time_matrix).length>0;
+  var totalPdDay=D.cp_list.reduce(function(a,cp){return a+(D.cp_daily[String(cp)]||0);},0).toFixed(1);
+  document.getElementById('g-dpo').textContent=totalSegs>0?globalDpo.toFixed(3):'—';
+  document.getElementById('g-dpo').className='sim-kpi-v '+(globalImp>20?'g':globalImp>5?'o':'r');
+  document.getElementById('g-imp').textContent=totalSegs>0?(globalImp>0?'-':'+')+Math.abs(globalImp).toFixed(1)+'%':'—';
+  document.getElementById('g-imp').className='sim-kpi-v '+(globalImp>0?'g':'r');
+  document.getElementById('g-segs').textContent=totalSegs>0?totalSegs:'—';
+  // Fila de tiempo global — actualizar o crear los KPIs de tiempo
+  var gTimeRow=document.getElementById('g-time-row');
+  if(!gTimeRow){
+    gTimeRow=document.createElement('div');
+    gTimeRow.id='g-time-row';
+    gTimeRow.style.cssText='display:flex;gap:6px;margin-bottom:5px';
+    document.getElementById('g-segs').closest('.sim-kpi').parentNode.insertAdjacentElement('afterend',gTimeRow);
+  }
+  if(hasTpo&&totalSegs>0){
+    gTimeRow.style.display='flex';
+    gTimeRow.innerHTML='<div class="sim-kpi" style="flex:1"><div class="sim-kpi-v '+(globalImpT>20?'g':globalImpT>5?'o':'r')+'" id="g-tpo">'+(globalTpo/60).toFixed(1)+'\'</div><div class="sim-kpi-l">MIN/PEDIDO</div></div>'
+      +'<div class="sim-kpi" style="flex:1"><div class="sim-kpi-v '+(globalImpT>0?'g':'r')+'" id="g-timp">'+(globalImpT>0?'-':'+')+Math.abs(globalImpT).toFixed(1)+'%</div><div class="sim-kpi-l">MEJORA T</div></div>'
+      +'<div class="sim-kpi" style="flex:2"><div class="sim-kpi-v" style="font-size:11px;color:var(--muted)" id="g-tdur">'+fmtDur(totalWt)+'</div><div class="sim-kpi-l">TIEMPO TOTAL SEGS</div></div>';
+  } else { gTimeRow.style.display='none'; }
+  document.getElementById('g-note').textContent='Baseline: '+baseRoad.toFixed(3)+' km/ped'+(hasTpo?' · '+(baseTpo/60).toFixed(1)+' min/ped':'')+' ['+roadSrc+'] · '+totalSegs+' segs · '+totalPdDay+' ped/día';
+  if(unass.length>0){
+    var resPdDay=unass.reduce(function(a,cp){return a+(D.cp_daily[String(cp)]||0);},0).toFixed(1);
+    var card=document.createElement('div');
+    card.style.cssText='padding:8px 10px;border-bottom:1px solid var(--border);border-left:3px solid '+RESIDUAL+';opacity:.65';
+    card.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
+      +'<span style="font-family:monospace;font-size:10px;font-weight:600;color:'+RESIDUAL+'">Sin asignar</span>'
+      +'<span style="font-family:monospace;font-size:9px;color:var(--muted);margin-left:auto">'+unass.length+' CPs</span></div>'
+      +'<div style="display:flex;gap:5px;margin-bottom:4px">'
+      +'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v" style="font-size:13px;color:var(--muted)">'+(resS.ns>0?resS.dpo.toFixed(3):'—')+'</div><div class="sim-kpi-l">KM/PED</div></div>'
+      +'<div class="sim-kpi" style="flex:1;padding:5px 7px"><div class="sim-kpi-v" style="font-size:13px;color:var(--muted)">'+resS.ns+'</div><div class="sim-kpi-l">SEGS</div></div></div>'
+      +'<div style="font-size:9px;font-family:monospace;color:'+RESIDUAL+';margin-bottom:4px">'+resPdDay+' ped/día</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:3px">'+unass.map(function(cp){return '<span style="font-family:monospace;font-size:9px;padding:1px 5px;border-radius:3px;background:'+RESIDUAL+'20;color:'+RESIDUAL+'">'+fmtCp(cp)+'</span>';}).join('')+'</div>';
+    panel.appendChild(card);
+  }
+}
+// Construye D.seg_geom[cpA_cpB] = [[lat,lng],...] a partir de las geometrías OSRM ya calculadas
+function _buildSegGeom(){
+  if(!D||!D.route_stats||!D.route_waypoints) return;
+  D.seg_geom={}; D.time_matrix={};
+  D.route_stats.forEach(function(r){
+    if(!r._osrm_coords||!r._osrm_legs) return;
+    var wps=D.route_waypoints[String(r.id)]; if(!wps) return;
+    var sorted=wps.slice().sort(function(a,b){return a[3]-b[3];});
+    var deliveries=sorted.filter(function(w){return w[4]!==2;});
+    if(deliveries.length<2) return;
+    var coords=r._osrm_coords, legs=r._osrm_legs, totalKm=r._osrm_total_km||1;
+    var totalPts=coords.length;
+    var cumDist=[0], total=0;
+    for(var i=1;i<totalPts;i++){
+      var a=coords[i-1],b=coords[i];
+      total+=hav(a[0],a[1],b[0],b[1]);
+      cumDist.push(total);
+    }
+    var totalDist=total||1;
+    var cumL=0, prevIdx=0;
+    legs.forEach(function(leg,li){
+      cumL+=leg.distance_km;
+      var frac=cumL/totalKm;
+      var endDist=frac*totalDist;
+      var pts=[];
+      for(var i=prevIdx;i<totalPts;i++){
+        pts.push(coords[i]);
+        if(cumDist[i]>=endDist&&i<totalPts-1){prevIdx=i;break;}
+        if(i===totalPts-1){prevIdx=i;}
+      }
+      if(li+1<deliveries.length&&pts.length>=2){
+        var cpA=String(deliveries[li][2]), cpB=String(deliveries[li+1][2]);
+        var key=cpA+'_'+cpB;
+        if(!D.seg_geom[key]) D.seg_geom[key]=pts;
+        // time_matrix: acumular duraciones y promediar
+        if(leg.duration_s>0){
+          if(!D.time_matrix[cpA]) D.time_matrix[cpA]={};
+          if(!D.time_matrix[cpA][cpB]) D.time_matrix[cpA][cpB]={sum:0,n:0};
+          D.time_matrix[cpA][cpB].sum+=leg.duration_s;
+          D.time_matrix[cpA][cpB].n++;
+        }
+      }
+    });
+  });
+  // Promediar time_matrix
+  Object.keys(D.time_matrix).forEach(function(a){
+    Object.keys(D.time_matrix[a]).forEach(function(b){
+      var v=D.time_matrix[a][b];
+      D.time_matrix[a][b]=v.sum/v.n;
+    });
+  });
+}
+
+function simRenderLines(){
+  if(!D) return; simLineLg.clearLayers();
+  D.sim_segs.forEach(function(s){
+    var corF=simCpCor(s[1]),corT=simCpCor(s[2]);
+    var isResF=!corF,isResT=!corT;
+    var same=(corF&&corT&&corF===corT)||(isResF&&isResT);
+    var col,w,op,dash;
+    if(same){col=isResF?RESIDUAL:corF.color;w=s[3]>10?3:2;op=.8;dash=null;}
+    else{col='#ef444450';w=1;op=.4;dash='3 5';}
+    // Usar geometría OSRM si está disponible, si no línea recta
+    var k1=String(s[1])+'_'+String(s[2]);
+    var k2=String(s[2])+'_'+String(s[1]); // también sentido inverso
+    var geom=(D.seg_geom&&(D.seg_geom[k1]||D.seg_geom[k2]))||[[s[4],s[5]],[s[6],s[7]]];
+    L.polyline(geom,{color:col,weight:w,opacity:op,dashArray:dash}).addTo(simLineLg);
+  });
+}
+function simRenderAll(){simRenderTabs();simRenderCpGrid();simUpdatePolys();simRenderLines();simRenderResults();}
+
+// Tab switch
+function switchTab(i){
+  document.querySelectorAll('.tab-content').forEach(function(el,j){el.classList.toggle('active',j===i);});
+  document.querySelectorAll('#screen-app .tab-btn').forEach(function(el,j){el.classList.toggle('active',j===i);});
+  if(maps[i]) setTimeout(function(){maps[i].invalidateSize();},60);
+}
+
+// INIT
+showCsvScreen();
+
+</script>
+</body>
+</html>
