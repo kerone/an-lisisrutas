@@ -1588,7 +1588,7 @@ function renderCorredores(){
           }}).addTo(corLg);
       });
       // Label only at first polygon centroid (avoid duplicates for CPs with multiple polys)
-      if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span style="font-family:monospace;font-size:10px;font-weight:600;color:'+col+';text-shadow:0 0 4px #0d0f14,0 0 4px #0d0f14;white-space:nowrap">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(corLg);
+      if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span style="font-family:monospace;font-size:10px;font-weight:700;color:#fff;text-shadow:-1px -1px 0 #0d0f14,1px -1px 0 #0d0f14,-1px 1px 0 #0d0f14,1px 1px 0 #0d0f14,0 0 5px #0d0f14;white-space:nowrap">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(corLg);
     });
   });
 }
@@ -1623,10 +1623,15 @@ function simToggleCp(cp){
 }
 function simPolyStyle(cp){
   var cor=simCpCor(cp);
-  if(cor) return{fillColor:cor.color,fillOpacity:.30,color:cor.color,weight:2.5,opacity:.9};
+  if(cor) return{fillColor:cor.color,fillOpacity:.55,color:cor.color,weight:2.5,opacity:.95};
   var ac=simCors[simActive];
   if(ac) return{fillColor:ac.color,fillOpacity:.07,color:ac.color,weight:1,opacity:.4};
   return{fillColor:'#4f8ef7',fillOpacity:.08,color:'#4f8ef730',weight:1};
+}
+function simPolyHoverStyle(cp){
+  var cor=simCpCor(cp);
+  var col=cor?cor.color:(simCors[simActive]?simCors[simActive].color:'#4f8ef7');
+  return{fillColor:col,fillOpacity:.80,color:col,weight:3,opacity:1};
 }
 function simInitPolygons(){
   simPolyL={};
@@ -1639,24 +1644,31 @@ function simInitPolygons(){
         onEachFeature:function(f,layer){
           layer.on({
             click:function(){simToggleCp(cp);},
-            mouseover:function(e){e.target.setStyle({fillOpacity:.55,weight:2.5});e.target.bringToFront();},
+            mouseover:function(e){e.target.setStyle(simPolyHoverStyle(cp));e.target.bringToFront();},
             mouseout:function(e){e.target.setStyle(simPolyStyle(cp));}
           });
           if(!bounds) bounds=layer.getBounds();
         }}).addTo(maps[3]);
       lyrs.push(lyr);
     });
-    if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span id="slbl'+cp+'" style="font-family:monospace;font-size:10px;font-weight:600;color:'+simCpCol(cp)+';text-shadow:0 0 4px #0d0f14;white-space:nowrap;pointer-events:none">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(maps[3]);
+    if(bounds) L.marker(bounds.getCenter(),{icon:L.divIcon({html:'<span id="slbl'+cp+'" style="font-family:monospace;font-size:10px;font-weight:700;color:#fff;text-shadow:-1px -1px 0 #0d0f14,1px -1px 0 #0d0f14,-1px 1px 0 #0d0f14,1px 1px 0 #0d0f14,0 0 5px #0d0f14;white-space:nowrap;pointer-events:none">'+fmtCp(cp)+'</span>',className:'',iconSize:[50,14],iconAnchor:[25,7]}),interactive:false}).addTo(maps[3]);
     simPolyL[cp]=lyrs;  // now an array of layers per CP
   });
   simPolyLInit=true;
 }
 function simUpdatePolys(){
   if(!simPolyLInit||!D)return;
+  var sel=simAssigned();
   D.cp_list.forEach(function(cp){
-    if(simPolyL[cp]&&simPolyL[cp].forEach) simPolyL[cp].forEach(function(lyr){lyr.eachLayer(function(l){l.setStyle(simPolyStyle(cp));});});
-    var lbl=document.getElementById('slbl'+cp);
-    if(lbl) lbl.style.color=simCpCol(cp);
+    if(simPolyL[cp]&&simPolyL[cp].forEach){
+      var isSel=sel.has(cp);
+      simPolyL[cp].forEach(function(lyr){
+        lyr.eachLayer(function(l){
+          l.setStyle(simPolyStyle(cp));
+          if(isSel) l.bringToFront();
+        });
+      });
+    }
   });
 }
 function simRenderTabs(){
