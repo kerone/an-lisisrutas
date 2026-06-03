@@ -229,7 +229,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
         <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7dd3fc;font-weight:600" title="Distancia híbrida: 50% geografía + 30% afinidad de rutas + 20% penalización por saltos >10km. Los saltos del histórico empujan a sus CPs a corredores distintos.">Anti-saltos (geo 50 · afin 30 · saltos 20)</span>
       </div>
       <div style="margin-left:auto;display:flex;gap:14px;font-size:11px;flex-wrap:wrap">
-        <span style="color:var(--muted)">Baseline: <span id="cor-baseline" style="font-family:'IBM Plex Mono',monospace;color:#f97316;font-weight:600">—</span></span>
+        <span style="color:var(--muted)" title="Baseline de corredores: km/ped y min/ped con distancias/tiempos OSRM REALES — cruces puerta→puerta históricos entre CPs (inter_matrix) + reparto intra-CP real (intra_matrix). Solo cae al centroide para pares de CPs que nunca se cruzaron en el histórico (necesario para simular corredores nuevos). Ahora converge con el km/ped del topbar; la diferencia residual son pares sin cruce histórico que usan centroide.">Baseline: <span id="cor-baseline" style="font-family:'IBM Plex Mono',monospace;color:#f97316;font-weight:600">—</span></span>
         <span style="color:var(--muted)">Corredores: <span id="cor-dpo" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
         <span style="color:var(--muted)">Mejora: <span id="cor-imp" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
         <span style="color:var(--muted)" title="Saltos >10km que cruzan corredores (= se eliminan si se reestructura el área)">Saltos elim.: <span id="cor-jumps-elim" style="font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">—</span></span>
@@ -723,18 +723,22 @@ function processRows(rows) {
       }
     });
 
-    // sim_segs (segmentos entre CPs consecutivos de entrega)
+    // sim_segs (segmentos entre paradas consecutivas de entrega).
+    // INCLUYE segmentos intra-CP (ra.cp===rb.cp): distancia puerta-a-puerta real que
+    // un corredor NO puede ahorrar (siempre cae dentro del mismo cluster). Conservarlos
+    // hace que baseline y corredores midan km TOTAL real, no solo saltos inter-CP, y que
+    // el % de mejora sea honesto. INTRA_CP es la 9ª posición (flag) para poder excluirlos.
     var simSegs=[];
     Object.keys(routeMap).forEach(function(rid){
       var pts=routeMap[rid].filter(function(r){return r.stop_type===1;})
                            .sort(function(a,b){return a.stop_order-b.stop_order;});
       for (var i=0;i<pts.length-1;i++){
         var ra=pts[i],rb=pts[i+1];
-        if(ra.cp===rb.cp) continue;
         var dist=!isNaN(ra.dist_seg_km)&&ra.dist_seg_km>0?ra.dist_seg_km:hav2(ra.lat,ra.lng,rb.lat,rb.lng);
+        var isIntra=ra.cp===rb.cp?1:0;
         simSegs.push([rid,ra.cp,rb.cp,Math.round(dist*1000)/1000,
-          Math.round(ra.lat*1e5)/1e5,Math.round(ra.lng*1e5)/1e5,
-          Math.round(rb.lat*1e5)/1e5,Math.round(rb.lng*1e5)/1e5]);
+          Math.round(ra.lat*1e7)/1e7,Math.round(ra.lng*1e7)/1e7,
+          Math.round(rb.lat*1e7)/1e7,Math.round(rb.lng*1e7)/1e7,isIntra]);
       }
     });
 
@@ -1048,9 +1052,11 @@ async function loadArea(){
   document.getElementById('app-brand').textContent=D.hive.toUpperCase();
   var displayArea = D.area.indexOf('COMBINADO_')===0 ? '['+D.area.substring(10).replace(/\+/g,' + ')+']' : D.area;
   document.getElementById('app-area').textContent=displayArea;
+  // Topbar km/ped: valor provisional con estimación haversine×road_factor (al abrir el área aún
+  // no hay OSRM). Se sustituye por km_road real (OSRM secuencia de paradas) al terminar osrmAllRoutes.
   var roadDpo=(D.baseline_dpo*(D.road_factor||1));
   document.getElementById('kpi-dpo').textContent=roadDpo.toFixed(3);
-  document.getElementById('kpi-dpo').title='baseline_dpo × road_factor (se actualiza con OSRM)';
+  document.getElementById('kpi-dpo').title='estimación provisional (haversine × road_factor '+(D.road_factor||1)+') — se actualiza a OSRM real al cargar las rutas';
   document.getElementById('kpi-jumps').textContent=D.n_jumps;
   document.getElementById('kpi-routes').textContent=D.n_routes;
   document.getElementById('jumps-hdr').textContent=D.n_jumps+' SALTOS >10KM — ORIGEN/DESTINO';
@@ -1187,14 +1193,18 @@ async function osrmAllRoutes(){
   filterRoutes();
   progWrap.style.display='none';
   if(rcountEl) rcountEl.textContent=total+' rutas';
-  // KPI global
+  // KPI global del topbar = km_road real (OSRM sobre la secuencia real de paradas de cada
+  // ruta). Es el km físico más fiel; NO usa road_factor. Ponderado por pedidos.
   var totalKm=0,totalN=0,totalDurS=0;
   D.route_stats.forEach(function(r){if(r.km_road!=null&&r.n>0){totalKm+=r.km_road;totalN+=r.n;totalDurS+=(r.duration_s||0);}});
   if(totalN>0){
-    document.getElementById('kpi-dpo').textContent=(totalKm/totalN).toFixed(3);
+    var dpoEl=document.getElementById('kpi-dpo');
+    dpoEl.textContent=(totalKm/totalN).toFixed(3);
+    dpoEl.title='km/ped real por carretera (OSRM, secuencia real de paradas)';
     var tpoGlobal=totalDurS/totalN;
     var tpoEl=document.getElementById('kpi-tpo');
     tpoEl.textContent=(tpoGlobal/60).toFixed(1)+' min';
+    tpoEl.title='min/ped real por carretera (OSRM)';
     tpoEl.className='tkv '+(tpoGlobal/60<8?'g':tpoGlobal/60<15?'o':'r');
   }
   // Lanzar saltos después de rutas para no saturar OSRM
@@ -1373,6 +1383,9 @@ async function osrmTableForArea(){
 function _refreshRoadDpo(){
   if(!D||!D.road_matrix||!D.sim_segs)return;
   _buildSegGeom(); // reconstruir caché de geometría por si llegó después de osrmAllRoutes
+  // NOTA: el topbar km/ped NO se toca aquí. Su fuente es km_road (OSRM sobre la secuencia
+  // real de paradas de cada ruta, ver osrmAllRoutes), que es el km físico más fiel.
+  // Esta función solo refresca la malla CP-centroide usada por corredores/simulación.
   simRenderResults();
   simRenderLines(); // redibujar líneas con geometría real
   renderCorredores();
@@ -1513,6 +1526,17 @@ function renderCorredores(){
   // Baseline = simComputeDpo(todos los CPs) — misma función que corredores → % coherente por carretera
   var baseRoad=(D.sim_segs?simComputeDpo(allCpSet).dpo:0)||D.baseline_dpo*rf;
 
+  // Desglose: km intra-CP (suelo fijo, no ahorrable por reagrupar) vs inter-CP (lo que optimiza el corredor)
+  var kmIntra=0,kmInter=0,nIntra=0,nInter=0;
+  (D.sim_segs||[]).forEach(function(s){
+    var k1=String(s[1]),k2=String(s[2]);
+    var d=(s[8]===1||k1===k2)?s[3]*rf:(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf);
+    if(s[8]===1||k1===k2){kmIntra+=d;nIntra++;} else {kmInter+=d;nInter++;}
+  });
+  var nTot=nIntra+nInter;
+  var dpoIntra=nTot>0?kmIntra/nTot:0; // km/ped fijo aportado por intra-CP
+  var pctIntra=baseRoad>0?(dpoIntra/baseRoad*100):0;
+
   function displayDpo(v){
     if(D.road_matrix&&v.cps&&v.cps.length>=2){
       var cpSet=new Set(v.cps.map(String));
@@ -1528,18 +1552,11 @@ function renderCorredores(){
     return v.dpo*rf;
   }
   function displayTpo(v){
-    var hasTM=D.time_matrix&&Object.keys(D.time_matrix).length>0;
-    if(!hasTM) return null;
-    var cpSet=new Set(v.cps.map(String));
-    var dur=0,ns=0;
-    (D.sim_segs||[]).forEach(function(s){
-      var k1=String(s[1]),k2=String(s[2]);
-      if(!cpSet.has(k1)||!cpSet.has(k2))return;
-      var t=(D.time_matrix[k1]&&D.time_matrix[k1][k2])||null;
-      if(t==null){var d=k1===k2?s[3]*rf:(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf); t=(d/30)*3600;}
-      dur+=t; ns++;
-    });
-    return ns>0?dur/ns:null;
+    // Fuente única: simComputeDpo aplica la misma jerarquía inter_matrix→centroide→fallback
+    // para tiempo que para distancia. Evita una segunda implementación que pueda divergir.
+    if(!v.cps||!v.cps.length) return null;
+    var res=simComputeDpo(new Set(v.cps.map(String)));
+    return res.ns>0?res.tpo:null;
   }
   var baseTpoRes=simComputeDpo(allCpSet);
   var baseTpo=baseTpoRes.tpo||null;
@@ -1587,6 +1604,11 @@ function renderCorredores(){
     +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:'+(impT!=null?'3':'7')+'px"><span style="color:var(--muted)">mejora km</span><span style="font-family:monospace;color:'+(parseFloat(imp)>=0?'#34d399':'#ef4444')+';font-weight:600">'+(parseFloat(imp)>=0?'-'+imp:'+'+Math.abs(parseFloat(imp)).toFixed(1))+'%</span></div>'
     +(impT!=null?'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:7px"><span style="color:var(--muted)">mejora tiempo</span><span style="font-family:monospace;color:'+(parseFloat(impT)>=0?'#34d399':'#ef4444')+';font-weight:600">'+(parseFloat(impT)>=0?'-'+impT:'+'+Math.abs(parseFloat(impT)).toFixed(1))+'%</span></div>':'')
     +'<div class="imp-bar"><div class="imp-fill" style="width:'+Math.min(imp,100)+'%;background:#34d399"></div></div>'
+    +'<div style="margin-top:8px;padding-top:7px;border-top:1px dashed var(--border)">'
+    +'<div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:2px"><span style="color:var(--muted)">· suelo intra-CP (fijo)</span><span style="font-family:monospace;color:#94a3b8">'+dpoIntra.toFixed(3)+' km/ped · '+pctIntra.toFixed(0)+'%</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:9px"><span style="color:var(--muted)">· inter-CP (optimizable)</span><span style="font-family:monospace;color:#94a3b8">'+(baseRoad-dpoIntra).toFixed(3)+' km/ped</span></div>'
+    +'<div style="font-size:8px;color:var(--muted);margin-top:3px;line-height:1.4">El '+pctIntra.toFixed(0)+'% del km/ped es reparto dentro del mismo CP, que ningún corredor puede reducir. La mejora real se concentra sobre el resto.</div>'
+    +'</div>'
     +'<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border)">'
     +'<div style="font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:5px">SALTOS &gt;10KM</div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--muted)">eliminados (cross)</span><span style="font-family:monospace;color:#34d399;font-weight:600">'+jElim+' · '+jKmElim.toFixed(1)+' km</span></div>'
@@ -1754,14 +1776,33 @@ function simComputeDpo(cpSet){
     var k1=String(s[1]),k2=String(s[2]);
     var d,t;
     if(k1===k2){
-      d=s[3]*(D.road_factor||1);
-      t=d>0?(d/30)*3600:0; // ~30km/h urbano para intra-CP
-    } else if(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0){
-      d=D.road_matrix[k1][k2];
-      t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/30)*3600);
+      // Intra-CP: usar km y tiempo OSRM reales (D.intra_matrix) si están disponibles.
+      // Fallback a haversine×road_factor y ~30km/h solo si aún no hay legs OSRM de ese CP.
+      var im=D.intra_matrix&&D.intra_matrix[k1];
+      var vKmh=D.avg_speed_kmh||30;
+      if(im){
+        d=im.km;
+        t=im.dur_s>0?im.dur_s:(d>0?(d/vKmh)*3600:0);
+      } else {
+        d=s[3]*(D.road_factor||1);
+        t=d>0?(d/vKmh)*3600:0;
+      }
     } else {
-      d=s[3]*(D.road_factor||1);
-      t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/30)*3600);
+      // Inter-CP. Preferencia: (1) cruce OSRM real histórico entre este par de CPs
+      // (D.inter_matrix, mira ambos sentidos), (2) matriz centroide (D.road_matrix),
+      // (3) haversine×road_factor. El cruce real evita los rodeos artificiales del centroide.
+      var vKmh2=D.avg_speed_kmh||30;
+      var ix=(D.inter_matrix&&((D.inter_matrix[k1]&&D.inter_matrix[k1][k2])||(D.inter_matrix[k2]&&D.inter_matrix[k2][k1])))||null;
+      if(ix){
+        d=ix.km;
+        t=ix.dur_s>0?ix.dur_s:(d>0?(d/vKmh2)*3600:0);
+      } else if(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0){
+        d=D.road_matrix[k1][k2];
+        t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/vKmh2)*3600);
+      } else {
+        d=s[3]*(D.road_factor||1);
+        t=(D.time_matrix&&D.time_matrix[k1]&&D.time_matrix[k1][k2])||((d/vKmh2)*3600);
+      }
     }
     km+=d; dur_s+=t;
   });
@@ -1858,6 +1899,8 @@ function simRenderResults(){
 function _buildSegGeom(){
   if(!D||!D.route_stats||!D.route_waypoints) return;
   D.seg_geom={}; D.time_matrix={};
+  D.intra_matrix={}; // cp -> {kmSum,durSum,n}: legs OSRM reales DENTRO del mismo CP
+  D.inter_matrix={}; // cpA -> cpB -> {kmSum,durSum,n}: cruces OSRM reales ENTRE CPs distintos
   D.route_stats.forEach(function(r){
     if(!r._osrm_coords||!r._osrm_legs) return;
     var wps=D.route_waypoints[String(r.id)]; if(!wps) return;
@@ -1884,16 +1927,32 @@ function _buildSegGeom(){
         if(cumDist[i]>=endDist&&i<totalPts-1){prevIdx=i;break;}
         if(i===totalPts-1){prevIdx=i;}
       }
-      if(li+1<deliveries.length&&pts.length>=2){
+      if(li+1<deliveries.length){
         var cpA=String(deliveries[li][2]), cpB=String(deliveries[li+1][2]);
-        var key=cpA+'_'+cpB;
-        if(!D.seg_geom[key]) D.seg_geom[key]=pts;
-        // time_matrix: acumular duraciones y promediar
-        if(leg.duration_s>0){
-          if(!D.time_matrix[cpA]) D.time_matrix[cpA]={};
-          if(!D.time_matrix[cpA][cpB]) D.time_matrix[cpA][cpB]={sum:0,n:0};
-          D.time_matrix[cpA][cpB].sum+=leg.duration_s;
-          D.time_matrix[cpA][cpB].n++;
+        if(cpA===cpB){
+          // Leg intra-CP: distancia y tiempo OSRM reales (coords de 7 decimales lo permiten).
+          // Se registra SIEMPRE (no depende del troceo de geometría), para que ningún
+          // segmento caiga al fallback de tiempo por falta de dato.
+          if(!D.intra_matrix[cpA]) D.intra_matrix[cpA]={kmSum:0,durSum:0,n:0};
+          D.intra_matrix[cpA].kmSum+=leg.distance_km;
+          D.intra_matrix[cpA].durSum+=(leg.duration_s||0);
+          D.intra_matrix[cpA].n++;
+        } else {
+          // inter_matrix: distancia Y tiempo OSRM reales de los cruces puerta→puerta históricos.
+          if(!D.inter_matrix[cpA]) D.inter_matrix[cpA]={};
+          if(!D.inter_matrix[cpA][cpB]) D.inter_matrix[cpA][cpB]={kmSum:0,durSum:0,n:0};
+          D.inter_matrix[cpA][cpB].kmSum+=leg.distance_km;
+          D.inter_matrix[cpA][cpB].durSum+=(leg.duration_s||0);
+          D.inter_matrix[cpA][cpB].n++;
+          // time_matrix legacy
+          if(leg.duration_s>0){
+            if(!D.time_matrix[cpA]) D.time_matrix[cpA]={};
+            if(!D.time_matrix[cpA][cpB]) D.time_matrix[cpA][cpB]={sum:0,n:0};
+            D.time_matrix[cpA][cpB].sum+=leg.duration_s;
+            D.time_matrix[cpA][cpB].n++;
+          }
+          // Geometría visual: solo si el troceo produjo puntos suficientes
+          if(pts.length>=2){var key=cpA+'_'+cpB; if(!D.seg_geom[key]) D.seg_geom[key]=pts;}
         }
       }
     });
@@ -1905,11 +1964,30 @@ function _buildSegGeom(){
       D.time_matrix[a][b]=v.sum/v.n;
     });
   });
+  // Promediar intra_matrix -> km y dur medios por leg intra-CP de cada CP
+  Object.keys(D.intra_matrix).forEach(function(cp){
+    var v=D.intra_matrix[cp];
+    D.intra_matrix[cp]={km:v.kmSum/v.n, dur_s:v.durSum/v.n, n:v.n};
+  });
+  // Promediar inter_matrix -> km y dur medios por par de CPs (cruces reales)
+  Object.keys(D.inter_matrix).forEach(function(a){
+    Object.keys(D.inter_matrix[a]).forEach(function(b){
+      var v=D.inter_matrix[a][b];
+      D.inter_matrix[a][b]={km:v.kmSum/v.n, dur_s:v.durSum/v.n, n:v.n};
+    });
+  });
+  // Velocidad media REAL del área según OSRM (km totales / tiempo total de todas las rutas).
+  // Sustituye a la constante de 30 km/h en los fallbacks de tiempo: si un segmento no tiene
+  // duración OSRM directa, se estima con la velocidad real observada, no con un valor inventado.
+  var sumKm=0,sumS=0;
+  D.route_stats.forEach(function(r){if(r.km_road>0&&r.duration_s>0){sumKm+=r.km_road;sumS+=r.duration_s;}});
+  D.avg_speed_kmh=(sumS>0)?(sumKm/(sumS/3600)):30;
 }
 
 function simRenderLines(){
   if(!D) return; simLineLg.clearLayers();
   D.sim_segs.forEach(function(s){
+    if(s[8]===1) return; // intra-CP: no se dibuja (movimiento dentro del mismo CP)
     var corF=simCpCor(s[1]),corT=simCpCor(s[2]);
     var isResF=!corF,isResT=!corT;
     var same=(corF&&corT&&corF===corT)||(isResF&&isResT);
