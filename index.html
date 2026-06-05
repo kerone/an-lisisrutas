@@ -381,7 +381,7 @@ function normalizeRow(r, fmt) {
 //     km máximos de saltos del área (normalización 0-1).
 var W_GEO=0.5, W_AFF=0.3, W_JMP=0.2;
 
-function computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumpsArr){
+function computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumpsArr, roadMatrix){
   var CLUSTER_KS=[2,3,4];
   var clusterings={}, results={};
   if (cpsWC.length<2) return {clusterings:clusterings, results:results};
@@ -389,13 +389,23 @@ function computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSe
   // 1. Matriz de distancias por par (normalizada 0-1)
   var n=cpsWC.length;
   var distMat=[];
-  // 1a. Distancia geográfica (haversine) entre centroides
+  // 1a. Distancia geográfica entre centroides.
+  // Preferencia: distancia OSRM real por carretera (roadMatrix, centroide→centroide) si está
+  // disponible; si no, haversine (línea recta). Ambas en km → el fallback no mezcla escalas.
+  // OJO: aquí NO se usa inter_matrix a propósito. inter_matrix = cruces puerta→puerta del
+  // histórico, que es justo lo que ya mide d_afin (Jaccard de co-ocurrencia). Meterla en d_geo
+  // contaría dos veces la afinidad y rompería el balance 50/30/20. d_geo debe ser proximidad
+  // geográfica pura; "por carretera" es esa misma idea pero realista en lugar de en recta.
   var geoMax=0, geoDist={};
   for (var i=0;i<n;i++){
     geoDist[i]={};
     for (var j=i+1;j<n;j++){
-      var ca=cpCentroids[String(cpsWC[i])], cb=cpCentroids[String(cpsWC[j])];
-      var d=hav2(ca[0],ca[1],cb[0],cb[1]);
+      var ka=String(cpsWC[i]), kb=String(cpsWC[j]);
+      var rd=(roadMatrix&&roadMatrix[ka]&&roadMatrix[ka][kb]>0)?roadMatrix[ka][kb]
+            :(roadMatrix&&roadMatrix[kb]&&roadMatrix[kb][ka]>0)?roadMatrix[kb][ka]:0;
+      var d;
+      if(rd>0){ d=rd; }
+      else { var ca=cpCentroids[ka], cb=cpCentroids[kb]; d=hav2(ca[0],ca[1],cb[0],cb[1]); }
       geoDist[i][j]=d;
       if (d>geoMax) geoMax=d;
     }
@@ -765,7 +775,9 @@ function processRows(rows) {
     });
     // Clustering anti-saltos: penaliza pares de CPs unidos por saltos >10km
     var clusterings={}, results={};
-    var defaultClust = computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumps);
+    // roadMatrix aún no existe en el build (OSRM es async) → pasamos null, d_geo cae a haversine.
+    // El clustering se recalcula con la road_matrix real en _refreshRoadDpo cuando OSRM responde.
+    var defaultClust = computeHybridClusterings(cpList, cpsWC, cpCentroids, routeCpsSet, simSegs, rf, jumps, null);
     clusterings = defaultClust.clusterings;
     results = defaultClust.results;
 
@@ -1383,6 +1395,15 @@ async function osrmTableForArea(){
 function _refreshRoadDpo(){
   if(!D||!D.road_matrix||!D.sim_segs)return;
   _buildSegGeom(); // reconstruir caché de geometría por si llegó después de osrmAllRoutes
+  // Recalcular el clustering con distancias OSRM reales en d_geo. En el build se hizo con
+  // haversine (la road_matrix aún no existía); ahora que está, las agrupaciones se rehacen
+  // sobre proximidad por carretera real. Mismos Ks [2,3,4] → activeClu sigue siendo válido.
+  if(D.cps_wc&&D.cps_wc.length>=2){
+    var rc=computeHybridClusterings(D.cp_list,D.cps_wc,D.cp_centroids,D.route_cps_set,D.sim_segs,D.road_factor||1,D.jumps,D.road_matrix);
+    if(rc&&rc.clusterings&&Object.keys(rc.clusterings).length){
+      D.clusterings=rc.clusterings; D.results=rc.results;
+    }
+  }
   // NOTA: el topbar km/ped NO se toca aquí. Su fuente es km_road (OSRM sobre la secuencia
   // real de paradas de cada ruta, ver osrmAllRoutes), que es el km físico más fiel.
   // Esta función solo refresca la malla CP-centroide usada por corredores/simulación.
@@ -1527,29 +1548,38 @@ function renderCorredores(){
   var baseRoad=(D.sim_segs?simComputeDpo(allCpSet).dpo:0)||D.baseline_dpo*rf;
 
   // Desglose: km intra-CP (suelo fijo, no ahorrable por reagrupar) vs inter-CP (lo que optimiza el corredor)
+  // Usa la MISMA jerarquía que simComputeDpo (intra_matrix / inter_matrix reales → centroide → haversine)
+  // para que el % intra cuadre con el baseRoad de arriba en lugar de mezclar fuentes.
   var kmIntra=0,kmInter=0,nIntra=0,nInter=0;
   (D.sim_segs||[]).forEach(function(s){
     var k1=String(s[1]),k2=String(s[2]);
-    var d=(s[8]===1||k1===k2)?s[3]*rf:(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf);
-    if(s[8]===1||k1===k2){kmIntra+=d;nIntra++;} else {kmInter+=d;nInter++;}
+    var isIntra=(s[8]===1||k1===k2);
+    var d;
+    if(isIntra){
+      var imB=D.intra_matrix&&D.intra_matrix[k1];
+      d=imB?imB.km:s[3]*rf;
+      kmIntra+=d;nIntra++;
+    } else {
+      var ixB=(D.inter_matrix&&((D.inter_matrix[k1]&&D.inter_matrix[k1][k2])||(D.inter_matrix[k2]&&D.inter_matrix[k2][k1])))||null;
+      if(ixB) d=ixB.km;
+      else if(D.road_matrix&&D.road_matrix[k1]&&D.road_matrix[k1][k2]>0) d=D.road_matrix[k1][k2];
+      else d=s[3]*rf;
+      kmInter+=d;nInter++;
+    }
   });
   var nTot=nIntra+nInter;
   var dpoIntra=nTot>0?kmIntra/nTot:0; // km/ped fijo aportado por intra-CP
   var pctIntra=baseRoad>0?(dpoIntra/baseRoad*100):0;
 
   function displayDpo(v){
-    if(D.road_matrix&&v.cps&&v.cps.length>=2){
-      var cpSet=new Set(v.cps.map(String));
-      var km=0,ns=0;
-      (D.sim_segs||[]).forEach(function(s){
-        var k1=String(s[1]),k2=String(s[2]);
-        if(!cpSet.has(k1)||!cpSet.has(k2))return;
-        var d=k1===k2?s[3]*rf:(D.road_matrix[k1]&&D.road_matrix[k1][k2]>0?D.road_matrix[k1][k2]:s[3]*rf);
-        km+=d; ns++;
-      });
-      return ns>0?km/ns:v.dpo*rf;
-    }
-    return v.dpo*rf;
+    // Fuente única: simComputeDpo aplica la jerarquía inter_matrix (cruces puerta→puerta
+    // reales) → centroide (road_matrix) → haversine, IGUAL que el baseline y que displayTpo.
+    // Antes usaba solo road_matrix (centroide): eso inflaba el km/ped del corredor con
+    // rodeos artificiales y dejaba el % de mejora comparando peras (baseline con cruces
+    // reales) con manzanas (corredor con centroide), sesgándolo siempre a la baja.
+    if(!v.cps||!v.cps.length) return v.dpo*rf;
+    var res=simComputeDpo(new Set(v.cps.map(String)));
+    return res.ns>0?res.dpo:v.dpo*rf;
   }
   function displayTpo(v){
     // Fuente única: simComputeDpo aplica la misma jerarquía inter_matrix→centroide→fallback
