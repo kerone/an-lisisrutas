@@ -13,10 +13,6 @@
 <body>
 <!-- DATA (parsed first, before any logic) -->
 
-</head>
-<body>
-<!-- DATA (parsed first, before any logic) -->
-
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -682,16 +678,18 @@ function processRows(rows) {
       var pts=routeMap[rid].slice().sort(function(a,b){return a.stop_order-b.stop_order;});
       var nPed=pts.filter(function(r){return r.stop_type===1;})
                   .reduce(function(s,r){return s+r.n_pedidos;},0);
-      // dpo_ruta: calcular con haversine entre consecutivos / nPed
+      // dpo_ruta: km por DESPLAZAMIENTO (dist / nº de segmentos entre paradas),
+      // la convención de la app original — coherente con simComputeDpo y el topbar
       var totalDist=0;
       for (var i=0;i<pts.length-1;i++) totalDist+=hav2(pts[i].lat,pts[i].lng,pts[i+1].lat,pts[i+1].lng);
-      var dpo=nPed>0?totalDist/nPed:0;
       var shift=pts[0].shift||'morning';
       var date=pts[0].route_date||'';
       var cpSet={}, cps=[];
       pts.forEach(function(r){if(r.stop_type===1&&!cpSet[r.cp]){cpSet[r.cp]=1;cps.push(r.cp);}});
       cps.sort(function(a,b){return a-b;});
       var nStops=pts.filter(function(r){return r.stop_type===1;}).length;
+      var nSegR=Math.max(1,nStops-1);
+      var dpo=totalDist/nSegR;
       routeStats.push({id:rid, n:Math.round(nPed), n_stops:nStops, km:Math.round(totalDist*100)/100, dpo:Math.round(dpo*1000)/1000, shift:shift, date:date, cps:cps});
       // waypoints: [lat, lng, cp, order, type]
       var wps=pts.map(function(r){return[
@@ -702,9 +700,9 @@ function processRows(rows) {
       routeWaypoints[String(rid)]=wps;
     });
 
-    // baseline_dpo: media ponderada por nPed
+    // baseline_dpo: km totales / desplazamientos totales (misma convención)
     var totalDistAll=0, totalPedAll=0;
-    routeStats.forEach(function(r){totalDistAll+=r.dpo*r.n; totalPedAll+=r.n;});
+    routeStats.forEach(function(r){var w=Math.max(1,(r.n_stops||r.n)-1);totalDistAll+=r.dpo*w; totalPedAll+=w;});
     var bDpo=totalPedAll>0?totalDistAll/totalPedAll:0;
 
     // cp_list + cp_daily
@@ -791,7 +789,7 @@ function processRows(rows) {
       baseline_n_segs:simSegs.length,
       center:[Math.round(cLat*1e4)/1e4,Math.round(cLng*1e4)/1e4],
       road_factor:rf,
-      cp_list:cpList, cp_daily:cpDaily,
+      cp_list:cpList, cp_daily:cpDaily, cp_totals:cpTotals,
       cp_centroids:cpCentroids, route_cps_set:routeCpsSet, cps_wc:cpsWC,
       route_stats:routeStats, route_waypoints:routeWaypoints,
       jumps:jumps, sim_segs:simSegs,
@@ -1064,11 +1062,10 @@ async function loadArea(){
   document.getElementById('app-brand').textContent=D.hive.toUpperCase();
   var displayArea = D.area.indexOf('COMBINADO_')===0 ? '['+D.area.substring(10).replace(/\+/g,' + ')+']' : D.area;
   document.getElementById('app-area').textContent=displayArea;
-  // Topbar km/ped: valor provisional con estimación haversine×road_factor (al abrir el área aún
-  // no hay OSRM). Se sustituye por km_road real (OSRM secuencia de paradas) al terminar osrmAllRoutes.
-  var roadDpo=(D.baseline_dpo*(D.road_factor||1));
-  document.getElementById('kpi-dpo').textContent=roadDpo.toFixed(3);
-  document.getElementById('kpi-dpo').title='estimación provisional (haversine × road_factor '+(D.road_factor||1)+') — se actualiza a OSRM real al cargar las rutas';
+  // Topbar: MISMA función que el baseline de corredores (simComputeDpo sobre
+  // todos los CPs). Al abrir el área aún no hay OSRM → cae al fallback ×rf;
+  // se reactualiza (misma función) al terminar osrmAllRoutes y al llegar la road_matrix.
+  _updateTopbarUnified(true);
   document.getElementById('kpi-jumps').textContent=D.n_jumps;
   document.getElementById('kpi-routes').textContent=D.n_routes;
   document.getElementById('jumps-hdr').textContent=D.n_jumps+' SALTOS >10KM — ORIGEN/DESTINO';
@@ -1180,7 +1177,7 @@ async function osrmAllRoutes(){
       if(!result)return;
       var roadKmTotal=result.legs.reduce(function(a,l){return a+l.distance_km;},0);
       var nStops=deliveries.filter(function(w){return w[4]!==0;}).length;
-      r.dpo_road=nStops>0?roadKmTotal/nStops:0;
+      r.dpo_road=nStops>1?roadKmTotal/(nStops-1):roadKmTotal;
       r.km_road=roadKmTotal;
       r.duration_s=result.total_duration_s||0;
       r._osrm_legs=result.legs;
@@ -1205,20 +1202,15 @@ async function osrmAllRoutes(){
   filterRoutes();
   progWrap.style.display='none';
   if(rcountEl) rcountEl.textContent=total+' rutas';
-  // KPI global del topbar = km_road real (OSRM sobre la secuencia real de paradas de cada
-  // ruta). Es el km físico más fiel; NO usa road_factor. Ponderado por pedidos.
-  var totalKm=0,totalN=0,totalDurS=0;
-  D.route_stats.forEach(function(r){if(r.km_road!=null&&r.n>0){totalKm+=r.km_road;totalN+=r.n;totalDurS+=(r.duration_s||0);}});
-  if(totalN>0){
-    var dpoEl=document.getElementById('kpi-dpo');
-    dpoEl.textContent=(totalKm/totalN).toFixed(3);
-    dpoEl.title='km/ped real por carretera (OSRM, secuencia real de paradas)';
-    var tpoGlobal=totalDurS/totalN;
-    var tpoEl=document.getElementById('kpi-tpo');
-    tpoEl.textContent=(tpoGlobal/60).toFixed(1)+' min';
-    tpoEl.title='min/ped real por carretera (OSRM)';
-    tpoEl.className='tkv '+(tpoGlobal/60<8?'g':tpoGlobal/60<15?'o':'r');
-  }
+  // KPI global del topbar: fuente única (simComputeDpo con intra/inter_matrix
+  // recién construidas en _buildSegGeom). Idéntico al Baseline de corredores.
+  // IMPORTANTE: re-renderizar TODOS los consumidores de la fuente única aquí.
+  // Si solo se actualiza el topbar, el baseline se queda con la foto anterior
+  // (matrices parciales de cuando llegó la road_matrix) y los dos números
+  // divergen unas décimas pese a ser la misma función.
+  _updateTopbarUnified(false);
+  renderCorredores();
+  simRenderResults();
   // Lanzar saltos después de rutas para no saturar OSRM
   osrmJumps();
 }
@@ -1404,9 +1396,10 @@ function _refreshRoadDpo(){
       D.clusterings=rc.clusterings; D.results=rc.results;
     }
   }
-  // NOTA: el topbar km/ped NO se toca aquí. Su fuente es km_road (OSRM sobre la secuencia
-  // real de paradas de cada ruta, ver osrmAllRoutes), que es el km físico más fiel.
-  // Esta función solo refresca la malla CP-centroide usada por corredores/simulación.
+  // El topbar también se refresca aquí: la road_matrix mejora los pares de CPs
+  // sin cruce histórico, y como topbar = baseline (fuente única), ambos se
+  // mueven juntos y siguen coincidiendo.
+  _updateTopbarUnified(false);
   simRenderResults();
   simRenderLines(); // redibujar líneas con geometría real
   renderCorredores();
@@ -1568,7 +1561,7 @@ function renderCorredores(){
     }
   });
   var nTot=nIntra+nInter;
-  var dpoIntra=nTot>0?kmIntra/nTot:0; // km/ped fijo aportado por intra-CP
+  var dpoIntra=nTot>0?kmIntra/nTot:0; // km/desplazamiento fijo aportado por intra-CP
   var pctIntra=baseRoad>0?(dpoIntra/baseRoad*100):0;
 
   function displayDpo(v){
@@ -1599,10 +1592,9 @@ function renderCorredores(){
   var sumKm=0, sumNs=0, sumDur=0;
   corEntries.forEach(function(entry){
     var v=entry[1];
-    var vDpo=displayDpo(v);
-    var vTpo=displayTpo(v);
-    sumKm+=vDpo*v.n_segs; sumNs+=v.n_segs;
-    if(vTpo!=null) sumDur+=vTpo*v.n_segs;
+    if(!v.cps||!v.cps.length) return;
+    var res=simComputeDpo(new Set(v.cps.map(String)));
+    sumKm+=res.km; sumDur+=res.dur_s; sumNs+=res.ns;
   });
   var totalDisplayDpo=sumNs>0?sumKm/sumNs:baseRoad;
   var totalDisplayTpo=hasTM&&sumNs>0?sumDur/sumNs:null;
@@ -1838,7 +1830,35 @@ function simComputeDpo(cpSet){
   });
   var ns=intra.length;
   var routes=new Set(intra.map(function(s){return s[0];})).size;
-  return{km:km,dur_s:dur_s,ns:ns,routes:routes,dpo:ns>0?km/ns:0,tpo:ns>0?dur_s/ns:0};
+  // FUENTE ÚNICA DE MEDIDA (convención de la app original): km por
+  // desplazamiento entre pedidos consecutivos, con coste real OSRM por
+  // segmento. Topbar, baseline y corredores leen TODOS de esta función, así
+  // que coinciden por construcción — no "convergen", son el mismo número.
+  // ped se devuelve solo como dato informativo.
+  var ped=0;
+  arr.forEach(function(cp){ ped+=((D.cp_totals&&D.cp_totals[cp])||0); });
+  return{km:km,dur_s:dur_s,ns:ns,ped:ped,routes:routes,dpo:ns>0?km/ns:0,tpo:ns>0?dur_s/ns:0};
+}
+
+// Topbar = MISMA función que el baseline de corredores. Coinciden por
+// construcción, como en la app original: un solo número, dos sitios.
+function _updateTopbarUnified(provisional){
+  if(!D||!D.cp_list||!D.cp_list.length)return;
+  var res=simComputeDpo(new Set(D.cp_list.map(String)));
+  if(!(res.ns>0))return;
+  var dpoEl=document.getElementById('kpi-dpo');
+  if(dpoEl){
+    dpoEl.textContent=res.dpo.toFixed(3);
+    dpoEl.title=(provisional
+      ?'PROVISIONAL (haversine ×'+(D.road_factor||1)+', se actualiza con OSRM): '
+      :'')+'km por desplazamiento entre pedidos consecutivos, coste real OSRM por segmento (intra_matrix / inter_matrix). Es exactamente la misma función que el Baseline del tab Corredores: coinciden por construcción.';
+  }
+  var tpoEl=document.getElementById('kpi-tpo');
+  if(tpoEl&&res.tpo>0){
+    tpoEl.textContent=(res.tpo/60).toFixed(1)+' min';
+    tpoEl.title='min por desplazamiento — misma fuente única que el km del topbar y el baseline';
+    tpoEl.className='tkv '+(res.tpo/60<8?'g':res.tpo/60<15?'o':'r');
+  }
 }
 function simRenderResults(){
   var panel=document.getElementById('sim-results'); panel.innerHTML='';
@@ -1855,10 +1875,10 @@ function simRenderResults(){
   var baseRes=simComputeDpo(allCpSet);
   var baseRoad=baseRes.dpo||D.baseline_dpo*rf;
   var baseTpo=baseRes.tpo; // seg/pedido baseline
-  var totalW=0,totalWt=0,totalSegs=0;
+  var totalW=0,totalWt=0,totalSegs=0,totalPed=0;
   simCors.forEach(function(cor){
     var st=simComputeDpo(cor.cps);
-    totalW+=st.dpo*st.ns; totalWt+=st.tpo*st.ns; totalSegs+=st.ns;
+    totalW+=st.km; totalWt+=st.dur_s; totalSegs+=st.ns; totalPed+=st.ped;
     var imp=baseRoad>0?(baseRoad-st.dpo)/baseRoad*100:0;
     var impT=baseTpo>0?(baseTpo-st.tpo)/baseTpo*100:0;
     var hasTpo=D.time_matrix&&Object.keys(D.time_matrix).length>0;
@@ -1883,7 +1903,7 @@ function simRenderResults(){
     legend.appendChild(li);
   });
   var unass=simUnassigned();
-  var resS=simComputeDpo(new Set(unass)); totalW+=resS.dpo*resS.ns; totalWt+=resS.tpo*resS.ns; totalSegs+=resS.ns;
+  var resS=simComputeDpo(new Set(unass)); totalW+=resS.km; totalWt+=resS.dur_s; totalSegs+=resS.ns; totalPed+=resS.ped;
   var globalDpo=totalSegs>0?totalW/totalSegs:0;
   var globalTpo=totalSegs>0?totalWt/totalSegs:0;
   var globalImp=baseRoad>0?(baseRoad-globalDpo)/baseRoad*100:0;
