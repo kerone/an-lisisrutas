@@ -814,13 +814,22 @@ function buildIDX(allData){
 
 // ── Construir AREA_PROV y PROV_URLS desde cp_list ────────────────────────
 function buildAREA_PROV(allData){
+  // Todas las provincias del dataset ds-codigos-postales (prefijo de 2 dígitos → fichero).
+  // Sin las que empiezan por 0 (01 Álava … 09 Burgos) sus CPs nunca se pintaban en el mapa.
   var PROV_MAP={
-    "03":"ALICANTE","07":"BALEARES","08":"BARCELONA","11":"CADIZ",
-    "12":"CASTELLON","13":"CIUDAD_REAL","14":"CORDOBA","17":"GIRONA",
-    "18":"GRANADA","21":"HUELVA","23":"JAEN","28":"MADRID",
-    "29":"MALAGA","30":"MURCIA","31":"NAVARRA","33":"ASTURIAS",
-    "36":"PONTEVEDRA","41":"SEVILLA","43":"TARRAGONA","46":"VALENCIA",
-    "47":"VALLADOLID","48":"VIZCAYA","50":"ZARAGOZA"
+    "01":"ALAVA","02":"ALBACETE","03":"ALICANTE","04":"ALMERIA",
+    "05":"AVILA","06":"BADAJOZ","07":"BALEARES","08":"BARCELONA",
+    "09":"BURGOS","10":"CACERES","11":"CADIZ","12":"CASTELLON",
+    "13":"CIUDAD_REAL","14":"CORDOBA","15":"A_CORUNA","16":"CUENCA",
+    "17":"GIRONA","18":"GRANADA","19":"GUADALAJARA","20":"GUIPUZCOA",
+    "21":"HUELVA","22":"HUESCA","23":"JAEN","24":"LEON",
+    "25":"LLEIDA","26":"LA_RIOJA","27":"LUGO","28":"MADRID",
+    "29":"MALAGA","30":"MURCIA","31":"NAVARRA","32":"OURENSE",
+    "33":"ASTURIAS","34":"PALENCIA","35":"LAS_PALMAS","36":"PONTEVEDRA",
+    "37":"SALAMANCA","38":"TENERIFE","39":"CANTABRIA","40":"SEGOVIA",
+    "41":"SEVILLA","42":"SORIA","43":"TARRAGONA","44":"TERUEL",
+    "45":"TOLEDO","46":"VALENCIA","47":"VALLADOLID","48":"VIZCAYA",
+    "49":"ZAMORA","50":"ZARAGOZA","51":"CEUTA","52":"MELILLA"
   };
   var BASE="https://cdn.jsdelivr.net/gh/inigoflores/ds-codigos-postales@master/data/";
   var areaProv={}, provUrls={};
