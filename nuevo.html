@@ -202,7 +202,7 @@ body.panel-collapsed .sidebar{display:none!important}
 .li{display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px;color:var(--text);white-space:nowrap}
 .ld{width:18px;height:3px;border-radius:2px;flex-shrink:0}
 .ld.sq{width:12px;height:12px;border-radius:3px}
-.ld.dash{background:transparent;border-top:1px dashed var(--faint);height:0}
+.ld.dash{background:#9a9a9540;border:1px dashed #7a7a75;width:12px;height:12px;border-radius:3px}
 
 /* Mapa: tiles, etiquetas, popups */
 .leaflet-tile-pane{filter:saturate(.12) brightness(1.05);transition:filter .3s}
@@ -371,7 +371,7 @@ body.panel-collapsed .sidebar{display:none!important}
               <div class="li"><div class="ld" style="background:#009a4e"></div>menos de 5 km</div>
               <div class="li"><div class="ld" style="background:#e0a100"></div>5 a 10 km</div>
               <div class="li"><div class="ld" style="background:#d64545"></div>más de 10 km</div>
-              <div class="li"><div class="ld sq" style="background:#6dbf8a"></div>código postal</div>
+              <div class="li"><div class="ld sq" style="background:#5b9bd5;opacity:.35"></div>área (CPs)</div>
             </div>
           </div>
         </section>
@@ -1284,9 +1284,10 @@ function shadeHex(c,amt){
 // límite entre zonas se ve solo. Si el mapa tiene una zona seleccionada (map._selKey), esa va
 // con color firme y borde grueso y el resto atenuado.
 var AREA_OP=0.6;
-function polyStyle(map,fill,base,zone){
+function polyStyle(map,fill,base,zone,strong){
   var z=map?map.getZoom():8;
-  var k=z<=9?1:z>=11?0.5:0.75;
+  // strong (corredores, simulación): las áreas son el protagonista y apenas se aclaran al ampliar
+  var k=strong?(z<=9?1:0.85):(z<=9?1:z>=11?0.5:0.75);
   var hi=z>=11;
   if(base==null) base=AREA_OP;
   var edge=hi?shadeHex(fill,0.3):shadeHex(fill,0.22);
@@ -1297,10 +1298,18 @@ function polyStyle(map,fill,base,zone){
   }
   return {fillColor:fill,fillOpacity:+(base*k).toFixed(3),color:edge,weight:hi?1.8:0.8,opacity:hi?1:0.85,dashArray:null};
 }
-function restyleLayer(map,l){ if(!l||!l._fill) return; l.setStyle(polyStyle(map,l._fill,l._base,l._zone)); if(map&&map._selKey!=null&&String(l._zone)===String(map._selKey)){ try{l.bringToFront();}catch(_){} } }
+function restyleLayer(map,l){ if(!l||!l._fill) return; l.setStyle(l._shade?shadePolyStyle(map,l._zone):polyStyle(map,l._fill,l._base,l._zone,l._strong)); if(map&&map._selKey!=null&&String(l._zone)===String(map._selKey)){ try{l.bringToFront();}catch(_){} } }
+// Sombra base (Rutas y Saltos): un solo tono sutil para todos los CPs, como en el original;
+// el protagonismo es de las rutas. La zona seleccionada (map._selKey) se marca más.
+var SHADE_FILL='#5b9bd5';
+function shadePolyStyle(map,zone){
+  var sel=map&&map._selKey!=null?map._selKey:null;
+  if(sel!=null&&String(zone)===String(sel)) return {fillColor:SHADE_FILL,fillOpacity:.32,color:shadeHex(SHADE_FILL,0.35),weight:2.5,opacity:1,dashArray:null};
+  return {fillColor:SHADE_FILL,fillOpacity:sel!=null?.05:.09,color:SHADE_FILL,weight:1.2,opacity:.55,dashArray:null};
+}
 // Zona seleccionada en un mapa (p. ej. el CP elegido en Saltos): resalta esa y atenúa el resto
 function setMapSelection(i,key){ var m=maps[i]; if(!m) return; m._selKey=key==null?null:String(key); if(basePolyLg[i]) basePolyLg[i].eachLayer(function(l){ if(l.eachLayer) l.eachLayer(function(x){restyleLayer(m,x);}); }); }
-function hoverStyle(e){ e.target.setStyle({weight:2.6,fillOpacity:Math.min(0.85,(e.target.options.fillOpacity||0.5)+0.22)}); e.target.bringToFront(); }
+function hoverStyle(e){ e.target.setStyle({weight:2.6,fillOpacity:Math.min(0.85,(e.target.options.fillOpacity||0.5)+(e.target._shade?0.12:0.22))}); e.target.bringToFront(); }
 function syncZoomClass(m){ m.getContainer().classList.toggle('zoomed-in',m.getZoom()>=11); }
 // Etiqueta de CP: gris oscuro con halo blanco, visible desde zoom 10
 function cpLabel(map,cp,latlng,id){
@@ -1355,19 +1364,17 @@ async function loadProvinceGeo(prefixes, cpList){
       }
     });
   }
-  // Polígonos base (Rutas y Saltos): un color pastel por CP, distinto del de sus vecinos
+  // Polígonos base (Rutas y Saltos): sombra única y sutil; las rutas mandan
   var cpZone={}; cpList.forEach(function(cp){ if(geoF[Number(cp)]) cpZone[String(cp)]=String(cp); });
-  var adj=areaAdjacency(cpZone);
-  var cpColors=assignAreaColors(colorKey('cps'),Object.keys(cpZone),adj);
-  D.cp_colors=cpColors;
+  D.cp_colors=assignAreaColors(colorKey('cps'),Object.keys(cpZone),areaAdjacency(cpZone)); // (colores por CP disponibles por si hacen falta)
   [0,1].forEach(function(i){
     var m=maps[i], lg=basePolyLg[i];
     cpList.forEach(function(cp){
       var feats=geoF[Number(cp)]; if(!feats||!feats.length) return;
-      var col=cpColors[String(cp)]||AREA_PALETTE[0]; var bounds=null;
+      var bounds=null;
       feats.forEach(function(f){
-        var lyr=L.geoJSON(f,{style:function(){return polyStyle(m,col,AREA_OP,String(cp));},onEachFeature:function(ft,layer){
-          layer._fill=col; layer._base=AREA_OP; layer._zone=String(cp);
+        var lyr=L.geoJSON(f,{style:function(){return shadePolyStyle(m,String(cp));},onEachFeature:function(ft,layer){
+          layer._fill=SHADE_FILL; layer._shade=true; layer._zone=String(cp);
           layer.on({mouseover:hoverStyle,mouseout:function(e){restyleLayer(m,e.target);}});
           layer.bindPopup(pop('CP '+fmtCp(cp),[['Pedidos/día',(D.cp_daily[String(cp)]||0).toFixed(1),false],['Pedidos',''+(D.cp_totals[String(cp)]||0),false]]),{maxWidth:200});
           if(!bounds) bounds=layer.getBounds();
@@ -2032,10 +2039,9 @@ function simAssignColors(){
 }
 function simPolyStyle(cp){
   var cor=simCpCor(cp);
-  if(cor){ var st=polyStyle(maps[3],cor.color,AREA_OP); return st; }
-  var ac=simCors[simActive];
-  var col=ac?ac.color:'#c9c9c4';
-  return {fillColor:col,fillOpacity:.08,color:'#b5b5b0',weight:1,opacity:.8,dashArray:'3 4'};
+  if(cor) return polyStyle(maps[3],cor.color,AREA_OP,null,true);
+  // Sin asignar: gris claro con borde discontinuo, visible para saber qué CPs faltan
+  return {fillColor:'#9a9a95',fillOpacity:.2,color:'#7a7a75',weight:1.2,opacity:.9,dashArray:'4 4'};
 }
 function simPolyHoverStyle(cp){
   var cor=simCpCor(cp);
