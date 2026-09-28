@@ -205,7 +205,7 @@ body.panel-collapsed .sidebar{display:none!important}
 .ld.dash{background:transparent;border-top:1px dashed var(--faint);height:0}
 
 /* Mapa: tiles, etiquetas, popups */
-.leaflet-tile-pane{filter:saturate(.35) brightness(1.03);transition:filter .3s}
+.leaflet-tile-pane{filter:saturate(.12) brightness(1.05);transition:filter .3s}
 .zoomed-in .leaflet-tile-pane{filter:none}
 .cp-map-label{font-size:10px;font-weight:600;text-align:center;white-space:nowrap;color:#44443f!important;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 5px rgba(255,255,255,.9);pointer-events:none}
 .stop-n{font-size:9px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;width:14px;height:14px}
@@ -371,7 +371,7 @@ body.panel-collapsed .sidebar{display:none!important}
               <div class="li"><div class="ld" style="background:#009a4e"></div>menos de 5 km</div>
               <div class="li"><div class="ld" style="background:#e0a100"></div>5 a 10 km</div>
               <div class="li"><div class="ld" style="background:#d64545"></div>más de 10 km</div>
-              <div class="li"><div class="ld sq" style="background:#a9cfb4"></div>código postal</div>
+              <div class="li"><div class="ld sq" style="background:#6dbf8a"></div>código postal</div>
             </div>
           </div>
         </section>
@@ -1212,7 +1212,8 @@ async function getAllData(){
 }
 
 // ── Paleta pastel y colores por vecindad (mismo criterio que el visualizador de áreas) ──
-var AREA_PALETTE=['#f2a65a','#9dbfe0','#a9cfb4','#eeb2bf','#efd27f','#b2a5d6','#8ecdc6','#e7a79b','#c7da9a','#d2bca0','#a6d3e6','#d4b3dd','#f6c28f','#7fb7a4','#e3c393','#b6c0e6'];
+// Colores con cuerpo (misma paleta que el visualizador de áreas)
+var AREA_PALETTE=['#f0923a','#5b9bd5','#6dbf8a','#e8788f','#e6c229','#9b7fd1','#3fb8b0','#e07a5f','#9ec54b','#b8926a','#5ac8e8','#c07fc9','#f3a95a','#2f9e7a','#d9a441','#7f8fd9'];
 var areaColorCache={}, areaColorUser={}, AREA_MIN_DE=25;
 // Vecindad: dos "zonas" (CPs, corredores…) se tocan si sus CPs comparten vértices en el GeoJSON
 function areaAdjacency(cpZone){
@@ -1277,17 +1278,29 @@ function shadeHex(c,amt){
   var n=[1,3,5].map(function(i){return Math.round(parseInt(c.slice(i,i+2),16)*(1-amt));});
   return '#'+n.map(function(v){return v.toString(16).padStart(2,'0');}).join('');
 }
-// Estilo de polígono según zoom (estilo Power BI): relleno 52 % ≤9 · 39 % en 10 · 26 % en 11 · 16 % en 12 · 10 % ≥13;
-// desde zoom 11 el borde pasa a un tono oscurecido del propio color para seguir viendo los límites.
-var AREA_OP=0.52;
-function polyStyle(map,fill,base){
+// Estilo de polígono según zoom (igual que el visualizador de áreas): relleno 60 % hasta zoom 9,
+// 45 % en 10 y 30 % desde 11, donde se mantiene (con más transparencia dejaban de distinguirse).
+// Borde siempre en un tono oscuro del propio color: los CP de una misma zona se funden y el
+// límite entre zonas se ve solo. Si el mapa tiene una zona seleccionada (map._selKey), esa va
+// con color firme y borde grueso y el resto atenuado.
+var AREA_OP=0.6;
+function polyStyle(map,fill,base,zone){
   var z=map?map.getZoom():8;
-  var k=z<=9?1:({10:0.75,11:0.5,12:0.3})[Math.round(z)]; if(k==null) k=0.2;
+  var k=z<=9?1:z>=11?0.5:0.75;
   var hi=z>=11;
-  return {fillColor:fill,fillOpacity:+((base==null?AREA_OP:base)*k).toFixed(3),color:hi?shadeHex(fill,0.3):'#ffffff',weight:hi?1.8:1,opacity:1};
+  if(base==null) base=AREA_OP;
+  var edge=hi?shadeHex(fill,0.3):shadeHex(fill,0.22);
+  var sel=map&&map._selKey!=null?map._selKey:null;
+  if(zone!=null&&sel!=null){
+    if(String(zone)===String(sel)) return {fillColor:fill,fillOpacity:Math.max(base*k,0.5),color:shadeHex(fill,0.45),weight:3.5,opacity:1,dashArray:null};
+    return {fillColor:fill,fillOpacity:+(base*k*0.45).toFixed(3),color:edge,weight:hi?1.2:0.8,opacity:0.6,dashArray:null};
+  }
+  return {fillColor:fill,fillOpacity:+(base*k).toFixed(3),color:edge,weight:hi?1.8:0.8,opacity:hi?1:0.85,dashArray:null};
 }
-function restyleLayer(map,l){ if(!l||!l._fill) return; l.setStyle(polyStyle(map,l._fill,l._base)); }
-function hoverStyle(e){ e.target.setStyle({weight:2.6,fillOpacity:Math.min(0.8,(e.target.options.fillOpacity||0.5)+0.22)}); e.target.bringToFront(); }
+function restyleLayer(map,l){ if(!l||!l._fill) return; l.setStyle(polyStyle(map,l._fill,l._base,l._zone)); if(map&&map._selKey!=null&&String(l._zone)===String(map._selKey)){ try{l.bringToFront();}catch(_){} } }
+// Zona seleccionada en un mapa (p. ej. el CP elegido en Saltos): resalta esa y atenúa el resto
+function setMapSelection(i,key){ var m=maps[i]; if(!m) return; m._selKey=key==null?null:String(key); if(basePolyLg[i]) basePolyLg[i].eachLayer(function(l){ if(l.eachLayer) l.eachLayer(function(x){restyleLayer(m,x);}); }); }
+function hoverStyle(e){ e.target.setStyle({weight:2.6,fillOpacity:Math.min(0.85,(e.target.options.fillOpacity||0.5)+0.22)}); e.target.bringToFront(); }
 function syncZoomClass(m){ m.getContainer().classList.toggle('zoomed-in',m.getZoom()>=11); }
 // Etiqueta de CP: gris oscuro con halo blanco, visible desde zoom 10
 function cpLabel(map,cp,latlng,id){
@@ -1353,8 +1366,8 @@ async function loadProvinceGeo(prefixes, cpList){
       var feats=geoF[Number(cp)]; if(!feats||!feats.length) return;
       var col=cpColors[String(cp)]||AREA_PALETTE[0]; var bounds=null;
       feats.forEach(function(f){
-        var lyr=L.geoJSON(f,{style:function(){return polyStyle(m,col,AREA_OP);},onEachFeature:function(ft,layer){
-          layer._fill=col; layer._base=AREA_OP;
+        var lyr=L.geoJSON(f,{style:function(){return polyStyle(m,col,AREA_OP,String(cp));},onEachFeature:function(ft,layer){
+          layer._fill=col; layer._base=AREA_OP; layer._zone=String(cp);
           layer.on({mouseover:hoverStyle,mouseout:function(e){restyleLayer(m,e.target);}});
           layer.bindPopup(pop('CP '+fmtCp(cp),[['Pedidos/día',(D.cp_daily[String(cp)]||0).toFixed(1),false],['Pedidos',''+(D.cp_totals[String(cp)]||0),false]]),{maxWidth:200});
           if(!bounds) bounds=layer.getBounds();
@@ -1403,7 +1416,9 @@ async function loadArea(){
   switchTab(currentTab); filterRoutes(); buildJumpList(); renderAllJumps();
   // Los clusterings ya vienen calculados desde processArea con la lógica anti-saltos.
   activeClu=null; renderCorredores();
-  simCors=[]; simActive=0; simPolyLInit=false; simPolyL={};
+  // Los polígonos del simulador ya los creó loadProvinceGeo (simInitPolygons) para estos mapas;
+  // reiniciar aquí simPolyL dejaba el simulador sin poder colorearlos (fallo heredado).
+  simCors=[]; simActive=0;
   simAddCor();
   applyAllLegendPos();
   // OSRM background: rutas primero, saltos después (lanzados por osrmAllRoutes al terminar)
@@ -1785,7 +1800,7 @@ function buildJumpList(jumpsArr){
   });
 }
 function renderAllJumps(){
-  jLg.clearLayers();
+  jLg.clearLayers(); setMapSelection(1,null);
   var src=D.jumps_road||D.jumps;
   src.forEach(function(j){
     var col=j[3]>15?'#d64545':'#e0a100';
@@ -1797,7 +1812,7 @@ function renderAllJumps(){
   });
 }
 function selectJumpCp(cp){
-  activeJcp=cp;
+  activeJcp=cp; setMapSelection(1,cp);
   document.querySelectorAll('.ji').forEach(function(el){el.classList.toggle('on',el.dataset.cp===String(cp));});
   jLg.clearLayers();
   var src=D.jumps_road||D.jumps;
@@ -2020,7 +2035,7 @@ function simPolyStyle(cp){
   if(cor){ var st=polyStyle(maps[3],cor.color,AREA_OP); return st; }
   var ac=simCors[simActive];
   var col=ac?ac.color:'#c9c9c4';
-  return {fillColor:col,fillOpacity:.06,color:'#b5b5b0',weight:1,opacity:.8,dashArray:'3 4'};
+  return {fillColor:col,fillOpacity:.08,color:'#b5b5b0',weight:1,opacity:.8,dashArray:'3 4'};
 }
 function simPolyHoverStyle(cp){
   var cor=simCpCor(cp);
