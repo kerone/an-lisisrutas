@@ -94,7 +94,18 @@ select.sort-select:hover{border-color:var(--text)}
 .pill.red{background:var(--red-bg);color:var(--red)}
 .pill:empty{display:none}
 
-/* Tira de indicadores */
+/* Tarjetas de indicadores */
+.kpi-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;flex-shrink:0}
+.kcard{padding:12px 16px 11px;min-width:0}
+.kcard .lbl{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kcard .vals{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:4px;font-size:22px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.kcard .vals small{font-size:13px;font-weight:600;color:var(--muted)}
+.kcard .vals .arrow{color:var(--faint);font-weight:400}
+.kcard .vals .pill{font-size:11.5px;align-self:center;margin-left:2px}
+.kcard .tkv.g,.kcard .tkv.o,.kcard .tkv.r{color:var(--text)}
+.kcard .sub{font-size:12px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:18px}
+.kcard .sub .pill{font-size:10.5px}
+/* (antigua tira) */
 .kpi-strip{display:flex;align-items:stretch;gap:0;padding:0 6px;flex-shrink:0;overflow-x:auto}
 .kpi{display:flex;flex-direction:column;justify-content:center;padding:9px 18px;min-width:120px;border-right:1px solid var(--border)}
 .kpi:last-of-type{border-right:none}
@@ -240,12 +251,14 @@ body.panel-collapsed .sidebar{display:none!important}
   .search-input,.search-input:focus{width:100%}
   .tab-btn{padding:9px 10px 8px;font-size:13.5px}
   .content{padding:8px 14px 10px;gap:8px}
-  .kpi{min-width:104px;padding:8px 12px;flex:0 0 auto}
-  .tkv{font-size:15px;white-space:nowrap}
-  .tkl{font-size:10.5px}
+  .kpi-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kcard{padding:9px 12px 8px}
+  .kcard .vals{font-size:16px;gap:4px}
+  .kcard .vals small{font-size:11px}
+  .kcard .vals .pill{font-size:10.5px;padding:2px 7px}
+  .kcard .sub{font-size:11px}
   .view-toggle{max-width:100%;overflow-x:auto;scrollbar-width:none}
   .view-toggle::-webkit-scrollbar{display:none}
-  .kpi-tail{display:none}
   .map-area{padding:6px}
   .sidebar{position:absolute;top:0;right:0;bottom:0;width:min(340px,88vw);z-index:1100;box-shadow:-8px 0 30px rgba(0,0,0,.18)}
   .map-legend{left:14px;bottom:30px;max-width:60vw;max-height:45%}
@@ -330,12 +343,19 @@ body.panel-collapsed .sidebar{display:none!important}
   </div>
 
   <div id="screen-app" style="display:none;flex:1;min-height:0;flex-direction:column;gap:10px">
-    <section class="kpi-strip card">
-      <div class="kpi"><span class="tkv g" id="kpi-dpo">—</span><span class="tkl">km / pedido (carretera)</span></div>
-      <div class="kpi"><span class="tkv" id="kpi-tpo">—</span><span class="tkl">min / pedido (carretera)</span></div>
-      <div class="kpi"><span class="tkv o" id="kpi-jumps">—</span><span class="tkl">saltos &gt; 10 km</span></div>
-      <div class="kpi"><span class="tkv" id="kpi-routes">—</span><span class="tkl">rutas</span></div>
-      <div class="kpi-tail"><span class="pill" id="osrmPill"></span></div>
+    <section class="kpi-cards" id="kpiCards">
+      <div class="card kcard"><div class="lbl">km / pedido</div>
+        <div class="vals"><span class="tkv" id="kpi-dpo">—</span><span class="arrow">→</span><span id="kpi-dpo-after">—</span><small>km</small><span class="pill" id="kpi-dpo-delta"></span></div>
+        <div class="sub" id="kpi-dpo-sub">por carretera (OSRM)</div></div>
+      <div class="card kcard"><div class="lbl">min / pedido</div>
+        <div class="vals"><span class="tkv" id="kpi-tpo">—</span><span class="arrow">→</span><span id="kpi-tpo-after">—</span><small>min</small><span class="pill" id="kpi-tpo-delta"></span></div>
+        <div class="sub" id="kpi-tpo-sub">conducción por carretera, sin tiempo de servicio</div></div>
+      <div class="card kcard"><div class="lbl">saltos &gt; 10 km</div>
+        <div class="vals"><span class="tkv" id="kpi-jumps">—</span><span class="arrow">→</span><span id="kpi-jumps-after">—</span><span class="pill" id="kpi-jumps-delta"></span></div>
+        <div class="sub" id="kpi-jumps-sub">—</div></div>
+      <div class="card kcard"><div class="lbl">rutas · pedidos/día</div>
+        <div class="vals"><span class="tkv" id="kpi-routes">—</span><small>rutas</small><span class="arrow">·</span><span id="kpi-ped">—</span><small>ped/día</small></div>
+        <div class="sub" id="kpi-routes-sub"><span class="pill" id="osrmPill"></span></div></div>
     </section>
 
     <!-- RUTAS -->
@@ -1611,6 +1631,7 @@ async function osrmJumps(){
   progWrap.style.display='none';
   var over10=D.jumps_road.filter(function(j){return j&&j[3]>10;}).length;
   document.getElementById('kpi-jumps').textContent=over10;
+  renderKpiCards();
   hdrEl.textContent=over10+' saltos > 10 km por carretera';
   buildJumpList(D.jumps_road);
 }
@@ -1956,6 +1977,7 @@ function renderCorredores(){
     });
   });
   updateLabelVisibility(maps[2]);
+  renderKpiCards();
 }
 
 // TAB 3: SIMULACIÓN
@@ -2148,6 +2170,7 @@ function _updateTopbarUnified(provisional){
     tpoEl.title='min por desplazamiento — misma fuente única que el km del topbar y el baseline';
     tpoEl.className='tkv '+(res.tpo/60<8?'g':res.tpo/60<15?'o':'r');
   }
+  if(typeof renderKpiCards==='function') renderKpiCards();
 }
 function simRenderResults(){
   var panel=document.getElementById('sim-results'); panel.innerHTML='';
@@ -2206,6 +2229,7 @@ function simRenderResults(){
     var resPdDay=unass.reduce(function(a,cp){return a+(D.cp_daily[String(cp)]||0);},0);
     panel.appendChild(corCard('Sin asignar',RESIDUAL,resS,resPdDay,unass.slice().sort(),true));
   }
+  renderKpiCards();
 }
 // Construye D.seg_geom[cpA_cpB] = [[lat,lng],...] a partir de las geometrías OSRM ya calculadas
 function _buildSegGeom(){
@@ -2324,6 +2348,7 @@ function switchTab(i){
   document.querySelectorAll('.tabs-row .tab-btn').forEach(function(el,j){el.classList.toggle('active',j===i);});
   document.body.className=document.body.className.replace(/\btab-\d\b/g,'').trim()+' tab-'+i+(document.body.classList.contains('panel-collapsed')?' panel-collapsed':'');
   if(maps[i]) setTimeout(function(){maps[i].invalidateSize();applyAllLegendPos();},60);
+  if(D) renderKpiCards();
 }
 
 // Panel lateral (en móvil empieza plegado para dejar el mapa libre)
@@ -2396,6 +2421,54 @@ function initLegendDrag(id){
   applyLegendPos(id);
 }
 ['legend0','legend1','legend2','legend3'].forEach(initLegendDrag);
+
+
+// ── Tarjetas de indicadores: actual → con corredores (sugeridos o simulados) ──
+function renderKpiCards(){
+  if(!D||!D.cp_list||!D.cp_list.length) return;
+  var $=function(id){return document.getElementById(id);};
+  var rf=D.road_factor||1, hasTM=!!(D.time_matrix&&Object.keys(D.time_matrix).length);
+  var base=simComputeDpo(new Set(D.cp_list.map(String)));
+  var baseDpo=base.dpo||D.baseline_dpo*rf, baseTpo=hasTM?base.tpo:null;
+  var after=null, label='', jumpsAfter=null, jumpsKmElim=null;
+  var jumpsNow=(D.jumps_road?D.jumps_road.filter(function(j){return j&&j[3]>10;}):D.jumps)||[];
+  if(currentTab===3&&simCors.length&&simAssigned().size){
+    var km=0,dur=0,ns=0;
+    simCors.forEach(function(c){var st=simComputeDpo(c.cps);km+=st.km;dur+=st.dur_s;ns+=st.ns;});
+    var resS=simComputeDpo(new Set(simUnassigned())); km+=resS.km;dur+=resS.dur_s;ns+=resS.ns;
+    if(ns>0) after={dpo:km/ns,tpo:hasTM?dur/ns:null};
+    var rem=jumpsNow.filter(function(j){return simCpCor(j[1])===simCpCor(j[2]);});
+    jumpsAfter=rem.length; jumpsKmElim=jumpsNow.reduce(function(s,j){return s+j[3];},0)-rem.reduce(function(s,j){return s+j[3];},0);
+    label='simulación';
+  } else if(activeClu&&D.results&&D.results[String(activeClu)]){
+    var res=D.results[String(activeClu)], km2=0,dur2=0,ns2=0;
+    Object.keys(res).forEach(function(k){ if(k==='_total'||!res[k].cps||!res[k].cps.length) return; var st=simComputeDpo(new Set(res[k].cps.map(String))); km2+=st.km;dur2+=st.dur_s;ns2+=st.ns; });
+    if(ns2>0) after={dpo:km2/ns2,tpo:hasTM?dur2/ns2:null};
+    var t=res._total||{}; jumpsAfter=t.jumps_remaining!=null?t.jumps_remaining:null; jumpsKmElim=t.jumps_km_eliminated||0;
+    label=activeClu+' corredores sugeridos';
+  }
+  function pill(el,pct,suffix){
+    if(pct==null||!isFinite(pct)){el.className='pill';el.textContent='';return;}
+    el.className='pill '+(pct<-0.05?'green':pct>0.05?'red':''); el.textContent=(pct>0?'+':'')+pct.toFixed(1)+' %'+(suffix||'');
+  }
+  var provisional=!D.osrm_cov&&!(D.route_stats||[]).some(function(r){return r.dpo_road!=null;});
+  $('kpi-dpo').textContent=baseDpo.toFixed(3);
+  $('kpi-dpo-after').textContent=after?after.dpo.toFixed(3):'—';
+  pill($('kpi-dpo-delta'),after&&baseDpo>0?(after.dpo-baseDpo)/baseDpo*100:null);
+  $('kpi-dpo-sub').textContent=(after?'actual → '+label:'actual')+(provisional?' · provisional, línea recta ×'+rf:' · por carretera (OSRM)');
+  $('kpi-tpo').textContent=baseTpo?(baseTpo/60).toFixed(1):'—';
+  $('kpi-tpo-after').textContent=after&&after.tpo?(after.tpo/60).toFixed(1):'—';
+  pill($('kpi-tpo-delta'),after&&after.tpo&&baseTpo?(after.tpo-baseTpo)/baseTpo*100:null);
+  $('kpi-tpo-sub').textContent=baseTpo?(after?'actual → '+label:'actual')+' · conducción, sin tiempo de servicio':'pendiente de OSRM';
+  $('kpi-jumps').textContent=jumpsNow.length;
+  $('kpi-jumps-after').textContent=jumpsAfter!=null?jumpsAfter:'—';
+  var jp=$('kpi-jumps-delta');
+  if(jumpsAfter!=null&&jumpsNow.length){var d=jumpsAfter-jumpsNow.length; jp.className='pill '+(d<0?'green':d>0?'red':''); jp.textContent=(d>0?'+':'')+d;} else {jp.className='pill';jp.textContent='';}
+  $('kpi-jumps-sub').textContent=jumpsAfter!=null?(jumpsKmElim||0).toFixed(0)+' km de salto eliminados · '+label:(D.jumps_road?'por carretera':'línea recta, pendiente de OSRM');
+  $('kpi-routes').textContent=D.n_routes;
+  $('kpi-ped').textContent=D.cp_list.reduce(function(s,cp){return s+(D.cp_daily[String(cp)]||0);},0).toFixed(1);
+  var rs=$('kpi-routes-sub'); var p=$('osrmPill'); rs.innerHTML=''; rs.appendChild(p); rs.appendChild(document.createTextNode(' '+D.service_days+' días de histórico · '+D.n_cps+' CPs'));
+}
 
 // INIT
 updatePageHeader();
