@@ -206,7 +206,7 @@ body.panel-collapsed .sidebar{display:none!important}
 
 /* Mapa: tiles, etiquetas, popups */
 .leaflet-tile-pane{filter:saturate(.12) brightness(1.05);transition:filter .3s}
-.zoomed-in .leaflet-tile-pane{filter:none}
+.zoomed-in .leaflet-tile-pane{filter:saturate(.55) brightness(1.02)}
 .cp-map-label{font-size:10px;font-weight:600;text-align:center;white-space:nowrap;color:#44443f!important;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 5px rgba(255,255,255,.9);pointer-events:none}
 .stop-n{font-size:9px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;width:14px;height:14px}
 .leaflet-container{font-family:var(--font)}
@@ -1321,6 +1321,60 @@ function updateLabelVisibility(m){
   m.getContainer().querySelectorAll('.cp-map-label').forEach(function(el){el.style.display=show?'block':'none';});
 }
 
+// Zoom continuo con la rueda: en vez de saltar de nivel en nivel, el mapa se
+// acerca poco a poco hacia el punto del ratón mientras gira la rueda
+// (basado en Leaflet.SmoothWheelZoom, licencia MIT; igual que en el visualizador de áreas)
+L.Map.mergeOptions({ smoothWheelZoom: true, smoothSensitivity: 1 });
+L.Map.SmoothWheelZoom = L.Handler.extend({
+  addHooks: function(){ L.DomEvent.on(this._map._container, 'wheel', this._onWheel, this); },
+  removeHooks: function(){ L.DomEvent.off(this._map._container, 'wheel', this._onWheel, this); },
+  _onWheel: function(e){
+    var map = this._map, self = this;
+    if (!this._wheeling) {
+      this._wheeling = true; this._moved = false;
+      map._stop(); if (map._panAnim) map._panAnim.stop();
+      this._goal = map.getZoom();
+      this._raf = requestAnimationFrame(function(){ self._step(); });
+    }
+    // el ancla sigue al ratón: el punto que hay bajo el cursor ahora es el que se queda quieto
+    this._mouse = map.mouseEventToContainerPoint(e);
+    this._startLatLng = map.containerPointToLatLng(this._mouse);
+    // Un golpe de rueda (≈100 px) = un nivel de zoom, igual que el zoom original de Leaflet;
+    // se normaliza a píxeles para que vaya igual en Windows, Mac y Firefox
+    var px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+    var dz = Math.max(-1, Math.min(1, -px / 100)) * map.options.smoothSensitivity;
+    // sin redondear al paso del zoom: los giros pequeños (trackpad, ratón de precisión) se perdían
+    this._goal = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), this._goal + dz));
+    clearTimeout(this._endTimer);
+    this._endTimer = setTimeout(function(){ self._end(); }, 220);
+    L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
+  },
+  _step: function(){
+    var map = this._map, z0 = map.getZoom(), self = this;
+    var z = z0 + (this._goal - z0) * 0.25;
+    if (Math.abs(this._goal - z) < 0.005) z = this._goal;
+    if (z !== z0) {
+      var delta = this._mouse.subtract(map.getSize()._divideBy(2));
+      var center = map.unproject(map.project(this._startLatLng, z).subtract(delta), z);
+      if (!this._moved) { map._moveStart(true, false); this._moved = true; }
+      map._move(center, z);
+    }
+    this._raf = requestAnimationFrame(function(){ self._step(); });
+  },
+  _end: function(){
+    this._wheeling = false;
+    cancelAnimationFrame(this._raf);
+    var map = this._map;
+    // termina de llegar al objetivo antes de soltar
+    if (this._moved && Math.abs(map.getZoom() - this._goal) > 0.001) {
+      var delta = this._mouse.subtract(map.getSize()._divideBy(2));
+      map._move(map.unproject(map.project(this._startLatLng, this._goal).subtract(delta), this._goal), this._goal);
+    }
+    if (this._moved) map._moveEnd(true);
+  }
+});
+L.Map.addInitHook('addHandler', 'smoothWheelZoom', L.Map.SmoothWheelZoom);
+
 var maps=[], rLg, jLg, corLg, simLineLg, basePolyLg=[];
 var GEO_CACHE={}, geoF={};
 
@@ -1331,8 +1385,8 @@ function initMaps(center){
   });
   maps=[]; basePolyLg=[];
   ['map0','map1','map2','map3'].forEach(function(id){
-    var m=L.map(id,{center:center,zoom:12,preferCanvas:true,attributionControl:false});
-    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google',maxZoom:19}).addTo(m);
+    var m=L.map(id,{center:center,zoom:12,preferCanvas:true,attributionControl:false,zoomSnap:0.25,zoomDelta:0.5,scrollWheelZoom:false,smoothWheelZoom:true,smoothSensitivity:1});
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=es&gl=ES&x={x}&y={y}&z={z}',{attribution:'© Google',maxZoom:19,subdomains:'0123'}).addTo(m);
     m.on('zoomend',function(){ syncZoomClass(m); m.eachLayer(function(l){ if(l._fill) restyleLayer(m,l); }); updateLabelVisibility(m); });
     syncZoomClass(m);
     maps.push(m);
