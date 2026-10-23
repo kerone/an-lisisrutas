@@ -1330,6 +1330,11 @@ L.Map.SmoothWheelZoom = L.Handler.extend({
   removeHooks: function(){ L.DomEvent.off(this._map._container, 'wheel', this._onWheel, this); },
   _onWheel: function(e){
     var map = this._map, self = this;
+    L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
+    // No pelear con el arrastre ni con la animación de zoom de los botones +/−:
+    // mientras duren, la rueda se ignora (antes el handler recolocaba el mapa en
+    // cada frame por debajo del arrastre y podía dejarlo "clavado").
+    if ((map.dragging && map.dragging.moving()) || map._animatingZoom) return;
     if (!this._wheeling) {
       this._wheeling = true; this._moved = false;
       map._stop(); if (map._panAnim) map._panAnim.stop();
@@ -1347,10 +1352,11 @@ L.Map.SmoothWheelZoom = L.Handler.extend({
     this._goal = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), this._goal + dz));
     clearTimeout(this._endTimer);
     this._endTimer = setTimeout(function(){ self._end(); }, 220);
-    L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
   },
   _step: function(){
     var map = this._map, z0 = map.getZoom(), self = this;
+    // si el usuario empieza a arrastrar a mitad de zoom, el zoom se da por terminado donde esté
+    if (map.dragging && map.dragging.moving()) { this._goal = z0; clearTimeout(this._endTimer); this._end(); return; }
     var z = z0 + (this._goal - z0) * 0.25;
     if (Math.abs(this._goal - z) < 0.005) z = this._goal;
     if (z !== z0) {
@@ -1366,7 +1372,7 @@ L.Map.SmoothWheelZoom = L.Handler.extend({
     cancelAnimationFrame(this._raf);
     var map = this._map;
     // termina de llegar al objetivo antes de soltar
-    if (this._moved && Math.abs(map.getZoom() - this._goal) > 0.001) {
+    if (this._moved && Math.abs(map.getZoom() - this._goal) > 0.001 && !(map.dragging && map.dragging.moving())) {
       var delta = this._mouse.subtract(map.getSize()._divideBy(2));
       map._move(map.unproject(map.project(this._startLatLng, this._goal).subtract(delta), this._goal), this._goal);
     }
@@ -1388,6 +1394,15 @@ function initMaps(center){
     var m=L.map(id,{center:center,zoom:12,preferCanvas:true,attributionControl:false,zoomSnap:0.25,zoomDelta:0.5,scrollWheelZoom:false,smoothWheelZoom:true,smoothSensitivity:1});
     L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=es&gl=ES&x={x}&y={y}&z={z}',{attribution:'© Google',maxZoom:19,subdomains:'0123'}).addTo(m);
     m.on('zoomend',function(){ syncZoomClass(m); m.eachLayer(function(l){ if(l._fill) restyleLayer(m,l); }); updateLabelVisibility(m); });
+    // Vigilante del arrastre: Leaflet ignora el mousedown si cree que ya hay un arrastre en curso
+    // (mouseup perdido al salir de la ventana, diálogo, etc.) o si el panel conserva la clase de
+    // animación de zoom. Un movimiento del ratón sin botón pulsado no puede ser un arrastre: se limpia.
+    m.getContainer().addEventListener('pointermove',function(e){
+      if(e.pointerType!=='mouse'||e.buttons!==0) return;
+      var d=L.Draggable._dragging;
+      if(d&&d.finishDrag){ try{ d.finishDrag(true); }catch(_){ } L.Draggable._dragging=false; }
+      if(!m._animatingZoom){ var pane=m.getPane('mapPane'); if(pane&&L.DomUtil.hasClass(pane,'leaflet-zoom-anim')) L.DomUtil.removeClass(pane,'leaflet-zoom-anim'); }
+    },{passive:true});
     syncZoomClass(m);
     maps.push(m);
     basePolyLg.push(L.layerGroup().addTo(m));
