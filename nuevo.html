@@ -193,6 +193,8 @@ body.panel-collapsed .sidebar{display:none!important}
 
 /* Leyenda sobre el mapa (arrastrable) */
 .map-legend{position:absolute;bottom:20px;left:20px;z-index:1000;background:rgba(255,255,255,.97);border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-width:270px;max-height:calc(100% - 60px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.leaflet-container .leaflet-popup{cursor:grab}
+.leaflet-dragging .leaflet-container .leaflet-popup{cursor:grabbing}
 .map-legend.dragging{opacity:.9;box-shadow:0 10px 30px rgba(0,0,0,.2)}
 .legend-head{position:sticky;top:-10px;z-index:1;display:flex;align-items:center;gap:8px;cursor:move;user-select:none;-webkit-user-select:none;touch-action:none;margin:-10px -14px 8px;padding:10px 14px 8px;background:#fff;border-bottom:1px solid var(--border)}
 .legend-grip{color:var(--faint);font-size:12px}
@@ -1403,6 +1405,14 @@ function initMaps(center){
       if(d&&d.finishDrag){ try{ d.finishDrag(true); }catch(_){ } L.Draggable._dragging=false; }
       if(!m._animatingZoom){ var pane=m.getPane('mapPane'); if(pane&&L.DomUtil.hasClass(pane,'leaflet-zoom-anim')) L.DomUtil.removeClass(pane,'leaflet-zoom-anim'); }
     },{passive:true});
+    // Popups: Leaflet bloquea el arrastre y la rueda cuando empiezan encima de un popup. En
+    // Corredores todo el mapa son polígonos y cada clic abre uno bajo el cursor, así que el mapa
+    // "dejaba de moverse". Se deja pasar el arrastre y la rueda al mapa (el clic sigue sin atravesar).
+    m.on('popupopen',function(e){
+      var c=e.popup.getElement(); if(!c) return;
+      L.DomEvent.off(c,'mousedown touchstart',L.DomEvent.stopPropagation);
+      if(e.popup._contentNode) L.DomEvent.off(e.popup._contentNode,'wheel',L.DomEvent.stopPropagation);
+    });
     syncZoomClass(m);
     maps.push(m);
     basePolyLg.push(L.layerGroup().addTo(m));
@@ -2496,7 +2506,7 @@ function initLegendDrag(id){
   });
   var end=function(){
     if(!drag) return; drag=null; el.classList.remove('dragging'); applyLegendPos(id);
-    _legendState[id].pos={x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0}; saveLegendState();
+    (_legendState[id]=_legendState[id]||{}).pos={x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0}; saveLegendState();
   };
   head.addEventListener('pointerup',end); head.addEventListener('pointercancel',end);
   head.addEventListener('dblclick',function(e){
