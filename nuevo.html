@@ -261,7 +261,9 @@ body.areas-mode .view-toggle,body.areas-mode .only-tab0,body.areas-mode #panelTo
 .av-bar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
 .av-bar .tr{width:120px;height:8px;border-radius:4px;background:#efefec;overflow:hidden;flex-shrink:0}
 .av-bar .tr i{display:block;height:100%;border-radius:4px;background:var(--accent)}
-.av-bar b{min-width:44px;font-weight:800}
+.av-bar b{min-width:52px;font-weight:800}
+.av-bar.est b{color:var(--faint);font-weight:700}
+.av-bar.est .tr i{background:#cfe9da}
 .av-go{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);font-size:12px;font-weight:700;color:var(--accent);cursor:pointer}
 .av-go:hover{border-color:var(--accent)}
 .av-foot{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:10px 16px 12px;border-top:1px solid var(--border);font-size:12.5px;color:var(--muted)}
@@ -1255,12 +1257,14 @@ function toggleAreaDropdown(force){
   showAreasView();
 }
 // ── Vista de áreas: lista ordenable para decidir qué área atacar ──
-var AV={sort:'baseline_dpo',dir:-1,hives:new Set()};
+var AV={sort:'road_dpo',dir:-1,hives:new Set()};
 var AV_COLS=[
   {k:'area',t:'Área',l:true},
   {k:'n_routes',t:'Rutas'},
   {k:'ped_day',t:'Ped/día'},
-  {k:'baseline_dpo',t:'km/ped (línea recta)'},
+  {k:'road_dpo',t:'km/ped carretera (OSRM)'},
+  {k:'road_tpo',t:'min/ped'},
+  {k:'baseline_dpo',t:'km/ped línea recta'},
   {k:'n_jumps',t:'Saltos > 10 km'},
   {k:'pct_routes_jump',t:'Rutas con salto'},
   {k:'pct_km_jumps',t:'km en saltos'}
@@ -1269,7 +1273,9 @@ function avRows(){
   var q=(document.getElementById('av-q').value||'').toLowerCase().trim();
   return _areaList.map(function(e){
     var m=e[1];
+    var est=m.road_dpo==null;   // aún sin OSRM: se ordena con la línea recta × factor medio de las ya calculadas
     return {key:e[0],area:m.area,hive:m.hive,n_routes:m.n_routes,n_cps:m.n_cps,ped_day:m.ped_day||0,baseline_dpo:m.baseline_dpo,n_jumps:m.n_jumps,
+      road_dpo:est?m.baseline_dpo*AVR.rf():m.road_dpo, road_tpo:m.road_tpo==null?-1:m.road_tpo, road_est:est, road_status:m.road_status||'', road_n:m.road_n||0,
       pct_routes_jump:m.n_routes?100*(m.routes_jump||0)/m.n_routes:0, pct_km_jumps:m.km_total?100*(m.km_jumps||0)/m.km_total:0};
   }).filter(function(r){
     return (!AV.hives.size||AV.hives.has(r.hive)) && (!q||(r.area+' '+r.hive).toLowerCase().indexOf(q)>=0);
@@ -1292,6 +1298,7 @@ function showAreasView(keep){
     var h=b.dataset.hive; if(!h) AV.hives.clear(); else if(AV.hives.has(h)) AV.hives.delete(h); else AV.hives.add(h);
     showAreasView(true); }; });
   renderAreasView();
+  startRoadEstimates();
 }
 function hideAreasView(){
   if(!D) return;
@@ -1305,9 +1312,10 @@ function hideAreasView(){
 function renderAreasView(){
   var rows=avRows(), s=AV.sort, dir=AV.dir;
   rows.sort(function(a,b){ var x=a[s],y=b[s]; if(typeof x==='string') return dir*x.localeCompare(y); return dir*(x-y)||a.area.localeCompare(b.area); });
-  var maxD=Math.max.apply(null,rows.map(function(r){return r.baseline_dpo;}).concat([0.001]));
+  var maxD=Math.max.apply(null,rows.map(function(r){return r.road_dpo;}).concat([0.001]));
   var f2=function(v){return v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var f0=function(v){return Math.round(v).toLocaleString('es-ES');};
+  var f1=function(v){return v.toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});};
   var head='<thead><tr><th class="l" style="width:34px"></th>'+AV_COLS.map(function(c){
     var on=AV.sort===c.k;
     return '<th class="'+(c.l?'l':'')+'"'+(on?' aria-sort="'+(dir>0?'ascending':'descending')+'"':'')+'><button type="button" data-sort="'+c.k+'">'+c.t+(on?(dir>0?' ↑':' ↓'):'')+'</button></th>';
@@ -1317,12 +1325,14 @@ function renderAreasView(){
     return '<tr class="'+(sel?'sel':'')+'" data-key="'+r.key+'"><td class="l"><span class="chk">✓</span></td>'
       +'<td class="l"><span class="an">'+r.area+'</span><span class="hv">'+r.hive.toUpperCase()+'</span></td>'
       +'<td>'+f0(r.n_routes)+'</td><td>'+(r.ped_day?f0(r.ped_day):'–')+'</td>'
-      +'<td><div class="av-bar"><span class="tr"><i style="width:'+(100*r.baseline_dpo/maxD).toFixed(1)+'%"></i></span><b>'+f2(r.baseline_dpo)+'</b></div></td>'
+      +'<td><div class="av-bar'+(r.road_est?' est':'')+'" title="'+(r.road_est?'Calculando por carretera… estimado con la línea recta':(r.road_status==='exact'?'Por carretera, todas las rutas (área analizada)':'Por carretera, muestra de '+r.road_n+' rutas'))+'"><span class="tr"><i style="width:'+(100*r.road_dpo/maxD).toFixed(1)+'%"></i></span><b>'+(r.road_est?'≈ ':'')+f2(r.road_dpo)+'</b></div></td>'
+      +'<td>'+(r.road_tpo<0?'<span style="color:var(--faint)">…</span>':f1(r.road_tpo))+'</td>'
+      +'<td style="color:var(--muted)">'+f2(r.baseline_dpo)+'</td>'
       +'<td>'+f0(r.n_jumps)+'</td><td>'+f0(r.pct_routes_jump)+' %</td><td>'+f0(r.pct_km_jumps)+' %</td>'
       +'<td><button type="button" class="av-go" data-solo="'+r.key+'">Analizar</button></td></tr>';
   }).join('');
   var tb=document.getElementById('av-table');
-  tb.innerHTML=head+'<tbody>'+(body||'<tr><td colspan="9" class="l" style="color:var(--muted)">Ninguna área coincide con el filtro.</td></tr>')+'</tbody>';
+  tb.innerHTML=head+'<tbody>'+(body||'<tr><td colspan="11" class="l" style="color:var(--muted)">Ninguna área coincide con el filtro.</td></tr>')+'</tbody>';
   tb.querySelectorAll('th button[data-sort]').forEach(function(b){ b.onclick=function(){
     var k=b.dataset.sort; if(AV.sort===k) AV.dir=-AV.dir; else { AV.sort=k; AV.dir=k==='area'?1:-1; } renderAreasView(); }; });
   tb.querySelectorAll('tbody tr[data-key]').forEach(function(tr){ tr.onclick=function(ev){
@@ -1332,8 +1342,48 @@ function renderAreasView(){
     refreshSelectorState(); renderAreasView(); }; });
   var n=selectedKeys.size, go=document.getElementById('av-go');
   go.disabled=!n; go.textContent=n>1?'Analizar '+n+' juntas':'Analizar';
-  document.getElementById('av-sub').textContent=rows.length+(rows.length===1?' área':' áreas')+' ordenadas por '+AV_COLS.filter(function(c){return c.k===AV.sort;})[0].t.toLowerCase()+'. Distancias en línea recta entre paradas seguidas; al abrir un área se calculan por carretera (OSRM).';
+  var done=_areaList.filter(function(e){return e[1].road_dpo!=null;}).length;
+  document.getElementById('av-sub').textContent=rows.length+(rows.length===1?' área':' áreas')+' ordenadas por '+AV_COLS.filter(function(c){return c.k===AV.sort;})[0].t.replace(/^[A-ZÁ]/,function(ch){return ch.toLowerCase();})+(AV.dir<0?', de más a menos. ':', de menos a más. ')
+    +(done<_areaList.length?'Calculando por carretera: '+done+' de '+_areaList.length+' áreas (muestra de '+AVR.SAMPLE+' rutas por área); las que faltan van con «≈», estimadas con la línea recta.'
+      :'Por carretera con una muestra de '+AVR.SAMPLE+' rutas por área (las áreas ya analizadas, con todas sus rutas).');
   document.getElementById('av-foot-txt').textContent=n?(n+(n===1?' área seleccionada':' áreas seleccionadas')+'. Pulsa otra fila para añadirla o quitarla.'):'Pulsa una fila para seleccionarla; marca varias para analizarlas juntas.';
+}
+// km/ped por carretera de cada área: muestra de rutas por OSRM → factor carretera/línea recta del área,
+// aplicado a su km/ped en línea recta (que usa todas las rutas). min/ped con el tiempo OSRM de la misma muestra.
+var AVR={SAMPLE:12,running:false,limit:pLimit(3),
+  rf:function(){ var v=_areaList.map(function(e){return e[1].road_rf;}).filter(function(x){return x>0;}); return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:1.3; }};
+var _avRenderT=null;
+function avRenderSoon(){ if(_avRenderT) return; _avRenderT=setTimeout(function(){ _avRenderT=null; if(document.getElementById('areasView').style.display!=='none') renderAreasView(); },400); }
+async function avRoadArea(key){
+  var m=IDX[key], d=ALL_DATA&&ALL_DATA[key]; if(!m||!d||m.road_dpo!=null) return;
+  var rs=(d.route_stats||[]).filter(function(r){return (r.n_stops||0)>=3;});
+  if(!rs.length){ m.road_status='error'; return; }
+  var n=Math.min(AVR.SAMPLE,rs.length), pick=[];
+  for(var i=0;i<n;i++) pick.push(rs[Math.floor((i+0.5)*rs.length/n)]);
+  var road=0, line=0, dur=0, ok=0;
+  await Promise.all(pick.map(function(r){ return AVR.limit(async function(){
+    var w=(d.route_waypoints[String(r.id)]||[]).slice().sort(function(a,b){return a[3]-b[3];}).filter(function(x){return x[4]!==2&&x[4]!==0;});
+    if(w.length<2) return;
+    var res=await osrmRoute(w.map(function(x){return [x[0],x[1]];}));
+    if(!res||!res.legs||res.legs.length!==w.length-1) return;
+    res.legs.forEach(function(l,j){ road+=l.distance_km; dur+=l.duration_s||0; line+=hav2(w[j][0],w[j][1],w[j+1][0],w[j+1][1]); });
+    ok++;
+  }); }));
+  if(!ok||line<=0){ m.road_status='error'; return; }
+  m.road_rf=road/line; m.road_dpo=m.baseline_dpo*m.road_rf; m.road_tpo=(dur/road)*m.road_dpo/60; m.road_n=ok; m.road_status='sample';
+}
+async function startRoadEstimates(){
+  if(AVR.running) return; AVR.running=true;
+  try{
+    var keys=_areaList.slice().sort(function(a,b){return b[1].baseline_dpo-a[1].baseline_dpo;}).map(function(e){return e[0];});
+    for(var i=0;i<keys.length;i++){ await avRoadArea(keys[i]); avRenderSoon(); }
+  } finally { AVR.running=false; avRenderSoon(); }
+}
+// Al terminar el cálculo completo de un área analizada, su valor exacto sustituye a la muestra
+function idxSetExactRoad(){
+  var m=IDX&&IDX[selectedArea]; if(!D||!m||selectedArea.indexOf('/COMBINADO_')>=0) return;
+  var res=simComputeDpo(new Set(D.cp_list.map(String))); if(!(res.ns>0)) return;
+  m.road_dpo=res.dpo; m.road_tpo=res.tpo/60; m.road_rf=m.baseline_dpo?res.dpo/m.baseline_dpo:m.road_rf; m.road_status='exact';
 }
 function analyzeFromAreasView(){ if(!selectedKeys.size) return; if(selectedKeys.size===1) selectedArea=Array.from(selectedKeys)[0]; loadArea(); }
 document.addEventListener('click',function(e){
@@ -1756,6 +1806,7 @@ async function osrmAllRoutes(){
   // (matrices parciales de cuando llegó la road_matrix) y los dos números
   // divergen unas décimas pese a ser la misma función.
   _updateTopbarUnified(false);
+  idxSetExactRoad();
   renderCorredores();
   simRenderResults();
   // Lanzar saltos después de rutas para no saturar OSRM
